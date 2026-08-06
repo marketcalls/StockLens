@@ -392,7 +392,28 @@ COLUMNS: tuple[Column, ...] = (
         "computed",
         description="Cash from operations divided by net profit",
     ),
+    # Not a stored column. `Index = "NIF50"` compiles to an EXISTS against
+    # snapshot_index_membership, which the compiler special-cases on this key.
+    Column(
+        "index",
+        "Index",
+        "text",
+        "computed",
+        aliases=("Index membership",),
+        description="Membership of a market index, matched by index symbol",
+    ),
 )
+
+
+# Keys that are screenable but are not stored columns. `Index` resolves to an
+# EXISTS against the membership table, so it must not appear in the snapshot DDL
+# or be looked up during materialisation.
+PSEUDO_KEYS = frozenset({"index"})
+
+
+def stored() -> tuple[Column, ...]:
+    """Catalog columns that are real columns of company_snapshot."""
+    return tuple(c for c in COLUMNS if c.key not in PSEUDO_KEYS)
 
 
 COLUMNS_BY_KEY: dict[str, Column] = {c.key: c for c in COLUMNS}
@@ -428,6 +449,6 @@ def snapshot_ddl() -> str:
         "symbol TEXT PRIMARY KEY",
         "updated_at TEXT NOT NULL",
     ]
-    lines += [f"{c.key} {c.sql_type}" for c in COLUMNS]
+    lines += [f"{c.key} {c.sql_type}" for c in stored()]
     body = ",\n  ".join(lines)
     return f"CREATE TABLE IF NOT EXISTS company_snapshot (\n  {body}\n)"

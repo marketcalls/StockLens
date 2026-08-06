@@ -35,7 +35,7 @@ from app.db.layer2 import (
     statement_period,
 )
 from app.ingest.normalise import utcnow
-from app.screener.catalog import COLUMNS, Column, snapshot_ddl
+from app.screener.catalog import Column, snapshot_ddl, stored
 
 logger = logging.getLogger("stocklens.materialise")
 
@@ -437,7 +437,7 @@ def materialise(engine: Engine) -> dict[str, int]:
     populated = 0
     for symbol, company_row in companies.items():
         values: dict[str, Any] = {"symbol": symbol, "updated_at": utcnow()}
-        for column in COLUMNS:
+        for column in stored():
             values[column.key] = _resolve_column(
                 column,
                 symbol,
@@ -455,7 +455,7 @@ def materialise(engine: Engine) -> dict[str, int]:
             populated += 1
         rows.append(values)
 
-    columns = ["symbol", "updated_at", *[c.key for c in COLUMNS]]
+    columns = ["symbol", "updated_at", *[c.key for c in stored()]]
     placeholders = ", ".join(f":{name}" for name in columns)
     sql = text(
         f"INSERT OR REPLACE INTO company_snapshot ({', '.join(columns)}) VALUES ({placeholders})"
@@ -485,5 +485,5 @@ def materialise(engine: Engine) -> dict[str, int]:
         "companies": len(rows),
         "with_fundamentals": populated,
         "index_links": len(links),
-        "columns": len(COLUMNS),
+        "columns": len(stored()),
     }

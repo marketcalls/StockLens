@@ -10,10 +10,12 @@ from app.screener.catalog import (
     COLUMNS,
     COLUMNS_BY_KEY,
     FRACTION_TO_PERCENT,
+    PSEUDO_KEYS,
     RUPEES_TO_CRORE,
     resolve,
     screenable,
     snapshot_ddl,
+    stored,
 )
 
 
@@ -121,10 +123,22 @@ class TestSchemaFallbacks:
 
 
 class TestSnapshotDdl:
-    def test_includes_every_catalog_column(self) -> None:
+    def test_includes_every_stored_column(self) -> None:
         ddl = snapshot_ddl()
-        for column in COLUMNS:
+        for column in stored():
             assert f"{column.key} " in ddl
+
+    def test_excludes_pseudo_columns(self) -> None:
+        """`Index` is screenable but is not a column.
+
+        It compiles to an EXISTS against the membership table, so putting it in
+        the table would create an always-null column that nothing writes.
+        """
+        assert "index TEXT" not in snapshot_ddl()
+        assert len(stored()) == len(COLUMNS) - len(PSEUDO_KEYS)
+
+    def test_pseudo_columns_are_still_screenable(self) -> None:
+        assert resolve("Index") is not None
 
     def test_has_a_primary_key_and_a_timestamp(self) -> None:
         ddl = snapshot_ddl()
