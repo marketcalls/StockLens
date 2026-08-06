@@ -423,7 +423,13 @@ def shareholding_pattern(symbol: str, *, engine: Engine | None = None) -> dict[s
     if not rows:
         return {"symbol": symbol, "available": False, "headers": [], "rows": []}
 
-    headers = sorted({r["period_label"] for r in rows}, key=_quarter_key)
+    # Reliance carries 41 quarters back to 2016. Statements cap at PERIOD_LIMIT
+    # and shareholding should read the same way; nobody scrolls ten years of it,
+    # and the extra columns only push the recent ones off the page.
+    headers = sorted({r["period_label"] for r in rows}, key=_quarter_key)[-PERIOD_LIMIT:]
+    shown = set(headers)
+    rows = [r for r in rows if r["period_label"] in shown]
+
     by_group: dict[str, dict[str, Any]] = defaultdict(dict)
     # Shareholder counts are per group and must be summed. Taking whichever
     # group happened to carry one reported Reliance as having 47 shareholders -
@@ -447,6 +453,12 @@ def shareholding_pattern(symbol: str, *, engine: Engine | None = None) -> dict[s
         }
         for group, values in sorted(by_group.items())
     ]
+    # A group with nothing across every quarter shown is a row of dashes.
+    # "Non-promoter non-public" - employee trusts, depository receipts - is
+    # absent for close to half of companies, and Reliance last reported it in
+    # 2016. A blank row reads as neither zero nor unreported, so drop it rather
+    # than make the reader guess which.
+    out = [row for row in out if any(v is not None for v in row["values"])]
     if holders:
         out.append(
             {
