@@ -65,11 +65,11 @@ export function IndexPage() {
   }, [query.data, sort, ascending])
 
   if (query.isLoading) {
-    return <p className="py-10 text-sm text-muted-foreground">Loading index...</p>
+    return <p className="container py-16 text-sm text-muted-foreground">Loading index...</p>
   }
   if (query.isError || !query.data) {
     return (
-      <div className="py-10">
+      <div className="container py-20">
         <h1 className="font-display text-title font-semibold">Index not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           No index with the symbol {indexSymbol}.{" "}
@@ -87,7 +87,7 @@ export function IndexPage() {
   const up = (quote?.change_pct ?? 0) >= 0
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="container min-w-0 space-y-6 py-6 md:py-10">
       <header className="min-w-0">
         <p className="eyebrow mb-2">
           <Link to="/indices" className="hover:text-primary hover:underline">

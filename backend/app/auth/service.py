@@ -10,6 +10,7 @@ from sqlalchemy import Engine, func, select
 
 from app.auth.models import Role, app_user, audit_log
 from app.auth.security import (
+    email_problem,
     hash_password,
     needs_rehash,
     normalise_email,
@@ -81,9 +82,10 @@ def create_user(
     first Super Admin is made by the CLI, and every later one by an existing
     Super Admin.
     """
+    problem = email_problem(email)
+    if problem:
+        raise SignupError(problem)
     email = normalise_email(email)
-    if not email or "@" not in email:
-        raise SignupError("Enter a valid email address")
 
     problem = password_problem(password)
     if problem:

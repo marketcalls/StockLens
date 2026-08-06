@@ -476,3 +476,57 @@ class TestCookieSecurity:
         settings_factory.cache_clear()
         assert settings_factory().session_cookie_secure is True
         settings_factory.cache_clear()
+
+
+class TestEmailIsOneRule:
+    """The CLI and the login endpoint must agree on what an address is.
+
+    They did not: `stocklens-auth create-super-admin admin@stocklens.local`
+    succeeded, and then every login attempt for that account was rejected as an
+    invalid address. The operator created the owner account and was locked out
+    of it, with no message explaining why.
+    """
+
+    def test_a_self_hosted_domain_is_accepted(self) -> None:
+        # StockLens is self-hosted. The address is a login identifier, not
+        # somewhere mail is ever sent, so .local and localhost are legitimate.
+        from app.auth.security import email_problem
+
+        assert email_problem("admin@stocklens.local") is None
+        assert email_problem("admin@localhost") is None
+
+    def test_nonsense_is_still_rejected(self) -> None:
+        from app.auth.security import email_problem
+
+        assert email_problem("no-at-sign") is not None
+        assert email_problem("@nothing-before") is not None
+        assert email_problem("nothing-after@") is not None
+        assert email_problem("two words@example.com") is not None
+        assert email_problem("") is not None
+
+    def test_an_absurdly_long_address_is_rejected(self) -> None:
+        from app.auth.security import MAX_EMAIL_LENGTH, email_problem
+
+        assert email_problem("a" * MAX_EMAIL_LENGTH + "@example.com") is not None
+
+    def test_the_account_the_cli_creates_can_actually_sign_in(self, client) -> None:
+        # The end-to-end version of the bug: create through the same service the
+        # CLI uses, then sign in over HTTP. Testing the validator alone would
+        # have missed it, because each half was self-consistent.
+        from app.auth.models import Role
+        from app.auth.service import create_user
+        from app.db.engine import get_engine
+
+        create_user(
+            get_engine(),
+            email="owner@stocklens.local",
+            password="a-long-enough-password",
+            role=Role.SUPER_ADMIN,
+        )
+
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "owner@stocklens.local", "password": "a-long-enough-password"},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["user"]["email"] == "owner@stocklens.local"

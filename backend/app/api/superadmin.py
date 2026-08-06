@@ -96,6 +96,18 @@ def rebuild(user: dict = Depends(require_super_admin)) -> dict[str, Any]:
     return result
 
 
+@router.post("/runs/{run_id}/release")
+def release(run_id: str, user: dict = Depends(require_super_admin)) -> dict[str, Any]:
+    """Clear a run that says it is still going but whose process has died.
+
+    This does not stop a live job - nothing here can reach into another process.
+    It is the operator stating that the job is gone, so the next one may start.
+    """
+    result = ingest.release_stuck_run(run_id)
+    record_audit(get_engine(), actor_id=user["id"], action="ingest.release", target=run_id)
+    return result
+
+
 @router.get("/quality")
 def quality() -> dict[str, Any]:
     return ingest.quality()

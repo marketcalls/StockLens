@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from app.auth.deps import current_user, export_limit_for, require_user, row_cap_for
 from app.auth.models import Role
@@ -25,13 +25,13 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class SignupRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str = Field(min_length=1, max_length=1024)
     display_name: str | None = Field(default=None, max_length=120)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str = Field(min_length=1, max_length=1024)
 
 

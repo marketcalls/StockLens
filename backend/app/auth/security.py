@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -81,6 +82,31 @@ def password_problem(password: str) -> str | None:
 
 def normalise_email(email: str) -> str:
     return email.strip().lower()
+
+
+# A login address here is an identifier, not somewhere we will ever send mail.
+# StockLens is self-hosted, so admin@stocklens.local, admin@localhost and
+# intranet-only domains are all legitimate - and a strict deliverability check
+# would reject exactly the addresses an operator is most likely to pick.
+#
+# This is deliberately the ONLY rule in the codebase. The CLI used to accept
+# addresses the login endpoint then refused, which let an operator create the
+# owner account and find themselves permanently locked out of it.
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.?[^@\s]*$")
+
+MAX_EMAIL_LENGTH = 254  # RFC 5321
+
+
+def email_problem(email: str) -> str | None:
+    """Why this address cannot be used as a login, or None if it can."""
+    cleaned = normalise_email(email)
+    if not cleaned:
+        return "Enter an email address"
+    if len(cleaned) > MAX_EMAIL_LENGTH:
+        return f"That address is longer than {MAX_EMAIL_LENGTH} characters"
+    if not _EMAIL_SHAPE.match(cleaned):
+        return "Enter a valid email address"
+    return None
 
 
 def issue_token(user_id: int, role: Role, *, expires_minutes: int | None = None) -> str:

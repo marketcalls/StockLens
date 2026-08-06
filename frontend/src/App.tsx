@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react"
 
 import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AdminPage } from "@/features/admin/admin-page"
 import { AuthPage } from "@/features/auth/auth-page"
 import { CompanyPage } from "@/features/company/company-page"
 import { IndexPage } from "@/features/indices/index-page"
@@ -22,6 +23,12 @@ const NAV = [
   { to: "/workspace", label: "Workspace" },
   { to: "/status", label: "Status" },
 ]
+
+/** The console link only appears for the person who can actually use it. */
+function useNavItems() {
+  const { limits } = useAuth()
+  return limits.can_manage_platform ? [...NAV, { to: "/admin", label: "Console" }] : NAV
+}
 
 function NavItem({
   to,
@@ -103,6 +110,7 @@ function Header() {
   const location = useLocation()
   const onHome = location.pathname === "/"
   const [open, setOpen] = useState(false)
+  const navItems = useNavItems()
 
   // A route change should always close the drawer, however it was triggered.
   useEffect(() => setOpen(false), [location.pathname])
@@ -125,7 +133,7 @@ function Header() {
         )}
 
         <nav className="hidden shrink-0 items-center gap-1 md:flex">
-          {NAV.map((item) => (
+          {navItems.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
           <span className="mx-1 h-5 w-px bg-border" />
@@ -156,7 +164,7 @@ function Header() {
           <div className="container space-y-3 py-4">
             {!onHome ? <SearchBox compact /> : null}
             <nav className="flex flex-col gap-1">
-              {NAV.map((item) => (
+              {navItems.map((item) => (
                 <NavItem key={item.to} {...item} onNavigate={() => setOpen(false)} />
               ))}
             </nav>
@@ -226,6 +234,7 @@ export default function App() {
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/signup" element={<AuthPage mode="signup" />} />
           <Route path="/status" element={<StatusPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

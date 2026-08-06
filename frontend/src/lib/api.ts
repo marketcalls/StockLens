@@ -439,3 +439,70 @@ export const indices = {
   movers: (limit = 8) =>
     request<{ gainers: IndexMover[]; losers: IndexMover[] }>(`/api/indices/movers?${qs({ limit })}`),
 }
+
+// ------------------------------------------------------------- super admin
+
+export type IngestionRunDetail = {
+  id: string
+  job_kind: string
+  scope: string | null
+  status: string
+  calls_made: number
+  call_budget: number | null
+  bytes_fetched: number
+  rows_written: number
+  started_at: string
+  finished_at: string | null
+  error: string | null
+  progress: Record<string, number>
+  /** Companies fetched so far, and how many the run set out to fetch. */
+  symbols_done: number
+  symbols_total: number | null
+  is_active: boolean
+}
+
+export type IngestionStatus = {
+  active_run_id: string | null
+  is_running: boolean
+  runs: IngestionRunDetail[]
+}
+
+export type BackfillPlan = {
+  symbols: number
+  calls_per_symbol: number
+  estimated_calls: number
+  estimated_hours: number
+  message?: string
+}
+
+export type StartedRun = {
+  run_id: string
+  started?: boolean
+  symbols?: number
+  estimated_calls?: number
+  first?: string[]
+  calls_made?: number
+  written?: Record<string, number>
+  quotes?: number
+}
+
+export const superadmin = {
+  status: () => request<IngestionStatus>("/api/superadmin/status"),
+  run: (runId: string) =>
+    request<IngestionRunDetail & { failures: { symbol: string; endpoint: string; last_error: string }[] }>(
+      `/api/superadmin/runs/${runId}`,
+    ),
+  plan: (limit?: number) => send<BackfillPlan>("/api/superadmin/plan", "POST", { limit: limit ?? null }),
+  universe: () => send<StartedRun>("/api/superadmin/universe", "POST"),
+  prices: () => send<StartedRun>("/api/superadmin/prices", "POST"),
+  backfill: (body: { limit?: number | null; symbols?: string[] | null; call_budget?: number | null }) =>
+    send<StartedRun>("/api/superadmin/backfill", "POST", {
+      limit: body.limit ?? null,
+      symbols: body.symbols ?? null,
+      call_budget: body.call_budget ?? null,
+    }),
+  materialise: () => send<Record<string, unknown>>("/api/superadmin/materialise", "POST"),
+  release: (runId: string) =>
+    send<{ run_id: string; cleared: boolean }>(`/api/superadmin/runs/${runId}/release`, "POST"),
+  quality: () => request<Record<string, unknown>>("/api/superadmin/quality"),
+}

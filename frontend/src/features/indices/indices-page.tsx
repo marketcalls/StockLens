@@ -83,7 +83,7 @@ export function IndicesPage() {
   const shown = grouped.reduce((n, [, rows]) => n + rows.length, 0)
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="container min-w-0 space-y-6 py-6 md:py-10">
       <header className="min-w-0">
         <p className="eyebrow mb-2">Market</p>
         <h1 className="font-display text-title font-semibold tracking-tight">Indices</h1>
