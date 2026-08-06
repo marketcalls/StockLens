@@ -101,7 +101,9 @@ describe("StatementTable", () => {
       />,
     )
     expect(screen.getByText("Financing Profit")).toBeInTheDocument()
-    expect(screen.getByText("1%")).toBeInTheDocument()
+    // 1.2%, not "1%". A bank's asset quality moves in tenths, so rounding the
+    // row to whole percent throws away the only part that changes.
+    expect(screen.getByText("1.2%")).toBeInTheDocument()
   })
 
   it("shows an empty message when there are no rows", () => {
@@ -124,5 +126,59 @@ describe("StatementTable", () => {
     render(<StatementTable headers={["Mar 2026"]} rows={[row({ values: [1] })]} />)
     const body = screen.getAllByRole("rowgroup")[1]
     expect(within(body).getByRole("rowheader", { name: "Sales" })).toBeInTheDocument()
+  })
+})
+
+describe("percentage precision", () => {
+  const pct = (values: number[]) =>
+    render(
+      <StatementTable
+        headers={values.map((_, i) => `P${i}`)}
+        rows={[row({ label: "Ratio", unit: "percent", values })]}
+      />,
+    )
+
+  it("keeps the decimals a small percentage lives in", () => {
+    // Axis Bank's gross NPA is 1.28% and its net NPA 0.37%. Rounded to whole
+    // percent those read "1%" and "0%" - which is how the scaling bug looked
+    // before it was fixed, and just as wrong.
+    pct([1.28, 0.37])
+    expect(screen.getByText("1.28%")).toBeInTheDocument()
+    expect(screen.getByText("0.37%")).toBeInTheDocument()
+  })
+
+  it("does not clutter a whole-number margin", () => {
+    pct([45])
+    expect(screen.getByText("45%")).toBeInTheDocument()
+  })
+
+  it("keeps one decimal in the middle range", () => {
+    pct([14.7])
+    expect(screen.getByText("14.7%")).toBeInTheDocument()
+  })
+
+  it("does not eat the zeros of a round hundred", () => {
+    // Stripping trailing zeros without checking for a decimal point turns a
+    // payout ratio of 100% into "1%" and 200% into "2%".
+    pct([100, 200, 1000])
+    expect(screen.getByText("100%")).toBeInTheDocument()
+    expect(screen.getByText("200%")).toBeInTheDocument()
+    expect(screen.getByText("1000%")).toBeInTheDocument()
+  })
+
+  it("shows an insurer's combined ratio above par", () => {
+    // Above 100% means an underwriting loss; it must not be clamped or reduced.
+    pct([107.2])
+    expect(screen.getByText("107%")).toBeInTheDocument()
+  })
+
+  it("keeps the sign on a negative", () => {
+    pct([-70])
+    expect(screen.getByText("-70%")).toBeInTheDocument()
+  })
+
+  it("shows a genuine zero as zero", () => {
+    pct([0])
+    expect(screen.getByText("0%")).toBeInTheDocument()
   })
 })

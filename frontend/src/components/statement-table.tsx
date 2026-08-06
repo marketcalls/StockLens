@@ -55,9 +55,26 @@ function columnClass(indexFromEnd: number, showAll: boolean): string {
   return COLUMN_VISIBILITY[indexFromEnd] ?? "hidden"
 }
 
+/**
+ * Percentages, with precision matched to the size of the number.
+ *
+ * A whole-number margin reads fine as "45%", but the same rounding turns Axis
+ * Bank's gross NPA of 1.28% into "1%" and its net NPA of 0.37% into "0%" - which
+ * is how the underlying scaling bug looked before it was fixed, and just as
+ * wrong. Trailing zeros are dropped so a clean 45 does not become "45.0".
+ */
+function formatPercentValue(value: number): string {
+  const size = Math.abs(value)
+  const places = size >= 100 ? 0 : size >= 10 ? 1 : 2
+  const text = value.toFixed(places)
+  // Only strip inside a decimal fraction. Applied to a whole number the same
+  // rule eats its trailing zeros, turning a payout ratio of 100% into "1%".
+  return text.includes(".") ? text.replace(/\.?0+$/, "") : text
+}
+
 function formatValue(value: number | null, unit: string): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—"
-  if (unit === "percent" || unit === "fraction_pct") return `${value.toFixed(0)}%`
+  if (unit === "percent" || unit === "fraction_pct") return `${formatPercentValue(value)}%`
   if (unit === "price" || unit === "ratio") return value.toFixed(2)
   if (unit === "count") return Math.round(value).toLocaleString("en-IN")
   return Math.round(value).toLocaleString("en-IN")
