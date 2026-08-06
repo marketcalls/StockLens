@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.ingest.normalise import (
     normalise_index_master,
+    normalise_index_quotes,
     normalise_index_returns,
     normalise_prices,
     normalise_profile,
@@ -440,3 +441,49 @@ class TestNonTradingRows:
             ],
         }
         assert normalise_prices("X", payload) == []
+
+
+class TestIndexQuoteValuation:
+    """Upstream sends zeros where an index has no valuation, not nulls."""
+
+    def _quote(self, **over):
+        base = {
+            "index_symbol": "INDVIX",
+            "quote_date": "2026-08-06",
+            "close_price": 12.11,
+            "pe": 0,
+            "pb": 0,
+            "div_yield": 0,
+        }
+        base.update(over)
+        return normalise_index_quotes([base])[0]
+
+    def test_zero_pe_and_pb_together_mean_not_published(self):
+        # INDIA VIX has no earnings and no book value. Storing 0.0 would put
+        # "P/E 0.00" on the page, asserting the index trades at zero times
+        # earnings rather than saying the figure does not apply.
+        row = self._quote()
+        assert row["pe"] is None
+        assert row["pb"] is None
+        assert row["div_yield"] is None
+
+    def test_the_price_itself_survives(self):
+        # VIX has a real level even though it has no valuation ratios.
+        assert self._quote()["close_price"] == 12.11
+
+    def test_a_genuine_zero_dividend_yield_is_kept(self):
+        # An index of companies that pay nothing really does yield 0%. That is a
+        # measurement, and only travels with pe/pb being absent.
+        row = self._quote(pe=28.4, pb=3.1, div_yield=0)
+        assert row["pe"] == 28.4
+        assert row["div_yield"] == 0
+
+    def test_a_real_index_keeps_its_valuation(self):
+        row = self._quote(index_symbol="NIF50", pe=20.91, pb=3.02, div_yield=1.26)
+        assert (row["pe"], row["pb"], row["div_yield"]) == (20.91, 3.02, 1.26)
+
+    def test_zero_pe_alone_is_not_enough_to_discard(self):
+        # Only the pair marks the block absent, so a single odd figure never
+        # silently deletes a published book value.
+        row = self._quote(pe=0, pb=3.02)
+        assert row["pb"] == 3.02

@@ -255,6 +255,15 @@ def _as_int(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _positive_or_none(value: float | None) -> float | None:
+    """An index capitalisation of exactly zero is an absent figure.
+
+    No live index is worth nothing; upstream sends 0 for the series that have no
+    capitalisation to report. Rendering that as "0" claims a measurement.
+    """
+    return None if value == 0 else value
+
+
 def normalise_index_master(payload: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """`/api/v1/index/master` -> (indices, constituent links).
 
@@ -276,7 +285,9 @@ def normalise_index_master(payload: Any) -> tuple[list[dict[str, Any]], list[dic
                 "exchange": item.get("exchange") or None,
                 "index_type": item.get("index_type") or None,
                 "index_sub_type": item.get("index_sub_type") or None,
-                "market_cap": parse_number(item.get("market_cap")),
+                # Zero is filler for the price-only series (VIX, dividend
+                # points, inverse/leverage) that have no capitalisation at all.
+                "market_cap": _positive_or_none(parse_number(item.get("market_cap"))),
                 "updated_at": now,
             }
         )
@@ -295,6 +306,21 @@ def normalise_index_quotes(payload: Any) -> list[dict[str, Any]]:
         quote_date = parse_date(item.get("quote_date"))
         if not index_symbol or not quote_date:
             continue
+
+        # Upstream fills the valuation block with zeros for indices where it has
+        # no meaning - INDIA VIX, dividend-point, USD-denominated, and the
+        # inverse/leverage series. A live index cannot trade at zero times
+        # earnings, so a zero here is an absent figure, not a measurement.
+        #
+        # P/E and P/B being zero together is what marks the block as absent; the
+        # dividend yield is only discarded alongside them, since an index of
+        # non-paying companies genuinely does yield nothing.
+        pe = parse_number(item.get("pe"))
+        pb = parse_number(item.get("pb"))
+        div_yield = parse_number(item.get("div_yield"))
+        if pe == 0 and pb == 0:
+            pe = pb = div_yield = None
+
         rows.append(
             {
                 "index_symbol": index_symbol,
@@ -305,10 +331,10 @@ def normalise_index_quotes(payload: Any) -> list[dict[str, Any]]:
                 "low_price": parse_number(item.get("low_price")),
                 "change_pct": parse_number(item.get("change_pct")),
                 "points_change": parse_number(item.get("points_change")),
-                "pe": parse_number(item.get("pe")),
-                "pb": parse_number(item.get("pb")),
-                "div_yield": parse_number(item.get("div_yield")),
-                "market_cap": parse_number(item.get("market_cap")),
+                "pe": pe,
+                "pb": pb,
+                "div_yield": div_yield,
+                "market_cap": _positive_or_none(parse_number(item.get("market_cap"))),
                 "turnover": parse_number(item.get("turnover")),
                 "volume": parse_number(item.get("volume")),
             }

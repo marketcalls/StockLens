@@ -6,6 +6,8 @@ import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthPage } from "@/features/auth/auth-page"
 import { CompanyPage } from "@/features/company/company-page"
+import { IndexPage } from "@/features/indices/index-page"
+import { IndicesPage } from "@/features/indices/indices-page"
 import { StatusPanel } from "@/features/meta/status-panel"
 import { ScreenerPage } from "@/features/screener/screener-page"
 import { HomePage } from "@/features/search/home-page"
@@ -16,6 +18,7 @@ import { cn } from "@/lib/utils"
 
 const NAV = [
   { to: "/screens", label: "Screens" },
+  { to: "/indices", label: "Indices" },
   { to: "/workspace", label: "Workspace" },
   { to: "/status", label: "Status" },
 ]
@@ -216,6 +219,8 @@ export default function App() {
               company page is linkable in either form. */}
           <Route path="/company/:symbol" element={<CompanyPage />} />
           <Route path="/company/:symbol/consolidated" element={<CompanyPage />} />
+          <Route path="/indices" element={<IndicesPage />} />
+          <Route path="/index/:indexSymbol" element={<IndexPage />} />
           <Route path="/screens" element={<ScreenerPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/login" element={<AuthPage mode="login" />} />

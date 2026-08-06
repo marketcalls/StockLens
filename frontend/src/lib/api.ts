@@ -350,3 +350,92 @@ export const workspace = {
     send<void>(`/api/watchlists/${id}/items/${symbol}`, "DELETE"),
   exportUrl: (query: string) => `/api/export/screen?query=${encodeURIComponent(query)}`,
 }
+
+// ---------------------------------------------------------------- indices
+
+/** Horizons FinEdge publishes, in the order a reader scans them. */
+export const RETURN_HORIZONS = ["1M", "3M", "6M", "1Y", "3Y", "5Y", "7Y", "10Y"] as const
+export type ReturnHorizon = (typeof RETURN_HORIZONS)[number]
+
+export type IndexSummary = {
+  index_symbol: string
+  index_name: string
+  exchange: string
+  index_type: string | null
+  index_sub_type: string | null
+  market_cap: number | null
+  constituents: number
+  close_price: number | null
+  change_pct: number | null
+  pe: number | null
+  pb: number | null
+  div_yield: number | null
+  returns: Partial<Record<ReturnHorizon, number>>
+}
+
+export type IndexQuote = {
+  quote_date: string
+  close_price: number | null
+  open_price: number | null
+  high_price: number | null
+  low_price: number | null
+  change_pct: number | null
+  points_change: number | null
+  pe: number | null
+  pb: number | null
+  div_yield: number | null
+  market_cap: number | null
+  volume: number | null
+}
+
+export type IndexConstituent = {
+  symbol: string
+  name: string | null
+  current_price: number | null
+  market_cap: number | null
+  pe: number | null
+  pb: number | null
+  dividend_yield: number | null
+  returnonequity: number | null
+  returnoncapital: number | null
+  net_profit: number | null
+  sales: number | null
+  change_pct: number | null
+  sector: string | null
+}
+
+export type IndexDetail = {
+  index_symbol: string
+  index_name: string
+  exchange: string
+  index_type: string | null
+  index_sub_type: string | null
+  market_cap: number | null
+  quote: IndexQuote | null
+  returns: Partial<Record<ReturnHorizon, number>>
+  horizons: ReturnHorizon[]
+  constituents: IndexConstituent[]
+  /** Every listed company has a quote; only backfilled ones have statements. */
+  count: number
+  with_fundamentals: number
+  median: {
+    pe: number | null
+    pb: number | null
+    dividend_yield: number | null
+    returnonequity: number | null
+  }
+}
+
+export type IndexMover = {
+  index_symbol: string
+  index_name: string
+  close_price: number | null
+  change_pct: number | null
+}
+
+export const indices = {
+  list: (limit = 300) => request<{ total: number; indices: IndexSummary[] }>(`/api/indices?${qs({ limit })}`),
+  detail: (symbol: string) => request<IndexDetail>(`/api/indices/${symbol}`),
+  movers: (limit = 8) =>
+    request<{ gainers: IndexMover[]; losers: IndexMover[] }>(`/api/indices/movers?${qs({ limit })}`),
+}

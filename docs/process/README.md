@@ -21,3 +21,4 @@ plain word will do. Where something went wrong, it says so and says what fixed i
 | 2026-08-06 | [Phase 4 - the workspace interface](2026-08-06-phase-4-workspace-interface.md) | Sign in, saved screens, watchlists, export, and the row cap as a real invitation. Phase 4 complete. |
 | 2026-08-06 | [The interface, rebuilt](2026-08-06-ui-redesign.md) | New palette, type system and the trend rail. Fixed the statement table that overflowed its panel and cut the newest column in half. |
 | 2026-08-06 | [The service layer](2026-08-06-service-layer.md) | Every capability became a plain Python function an agent could call directly. Found a health check that never looked at the database and an index claiming data it did not have. |
+| 2026-08-07 | [Index pages](2026-08-07-indices.md) | All 239 indices browsable, with a returns ladder and sortable constituents. Caught INDIA VIX reporting a P/E of zero, and 28 indices reporting a market cap of zero. |

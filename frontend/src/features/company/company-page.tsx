@@ -264,12 +264,13 @@ export function CompanyPage() {
           <div className="mt-5 flex flex-wrap items-center gap-1.5">
             <span className="eyebrow mr-1">Part of</span>
             {c.indices.slice(0, 5).map((index) => (
-              <span
+              <Link
                 key={index.symbol}
-                className="rounded border bg-raised px-2 py-0.5 text-micro text-muted-foreground"
+                to={`/index/${index.symbol}`}
+                className="rounded border bg-raised px-2 py-0.5 text-micro text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
                 {index.name}
-              </span>
+              </Link>
             ))}
             {c.indices.length > 5 ? (
               <span className="text-micro text-muted-foreground">+{c.indices.length - 5}</span>
