@@ -167,7 +167,7 @@ export function IndexPage() {
               <p className="mt-4 border-t pt-3 text-micro text-muted-foreground">
                 {index.with_fundamentals === 0
                   ? `None of the ${index.count} constituents have had their financial statements downloaded yet.`
-                  : `Medians are taken across the ${index.with_fundamentals} of ${index.count} constituents whose financial statements have been downloaded. The index P/E above is the exchange's own figure for all ${index.count}.`}
+                  : `Medians are taken across the ${index.with_fundamentals} of ${index.count} constituents whose financial statements have been downloaded. Loss-making companies are left out of the P/E and P/B medians, since a negative multiple is not a valuation. The index P/E above is the exchange's own figure for all ${index.count}.`}
               </p>
             </>
           )}

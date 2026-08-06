@@ -181,8 +181,22 @@ def detail(index_symbol: str, *, engine: Engine | None = None) -> dict[str, Any]
     # only exists after a backfill, which is the question being asked.
     with_data = [c for c in constituents if c.get("net_profit") is not None]
 
+    # A loss-making company has no earnings multiple. FinEdge reports price over
+    # negative earnings as a negative P/E - IndiGo comes back at -42.8 on a loss
+    # of Rs. 4,808 Cr - which is arithmetic, not a valuation. Sorted into a
+    # median it lands at the bottom and reads as the cheapest stock in the index.
+    # The same goes for a negative book value.
+    #
+    # Return on equity is left alone: negative ROE is a real measurement, and
+    # dropping it would flatter an index full of loss-makers.
+    POSITIVE_ONLY = {"pe", "pb"}
+
     def median(column: str) -> float | None:
-        values = sorted(c[column] for c in with_data if c.get(column) is not None)
+        values = sorted(
+            c[column]
+            for c in with_data
+            if c.get(column) is not None and not (column in POSITIVE_ONLY and c[column] <= 0)
+        )
         return values[len(values) // 2] if values else None
 
     return {
