@@ -88,12 +88,14 @@ describe("ResultsGrid", () => {
   it("shows the cap as a real row stating the true total", () => {
     view(result({ total: 340, returned: 25, capped: true }))
     expect(screen.getByText(/315 more/)).toBeInTheDocument()
-    expect(screen.getByText(/Sign up to see all 340/)).toBeInTheDocument()
+    // The invitation is a link, not a dead statement, and carries the true count.
+    const link = screen.getByRole("link", { name: /see all 340/ })
+    expect(link).toHaveAttribute("href", "/signup?next=/screens")
   })
 
   it("does not show the cap row when everything fits", () => {
     view(result())
-    expect(screen.queryByText(/Sign up to see all/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /see all/ })).not.toBeInTheDocument()
   })
 
   it("explains an empty result rather than showing a blank table", () => {

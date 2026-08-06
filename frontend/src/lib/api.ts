@@ -253,3 +253,100 @@ export const screener = {
   runPreset: (slug: string, page = 1) =>
     postScreen(`/api/screener/presets/${slug}/run?page=${page}`, {}),
 }
+
+export type AuthUser = {
+  id: number
+  email: string
+  display_name: string | null
+  role: "public" | "user" | "admin" | "super_admin"
+  role_level: number
+  is_active: boolean
+  email_verified: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export type Limits = {
+  screener_row_cap: number | null
+  screener_rows_unlimited: boolean
+  export_row_limit: number
+  can_save_screens: boolean
+  can_use_watchlists: boolean
+  can_export: boolean
+  can_admin: boolean
+  can_manage_platform: boolean
+}
+
+export type Session = { user: AuthUser | null; role: string; limits: Limits }
+
+export type SavedScreen = {
+  id: number
+  name: string
+  description: string | null
+  query: string
+  columns: string[] | null
+  is_public: boolean
+  share_token: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type Watchlist = {
+  id: number
+  name: string
+  created_at: string
+  items: { symbol: string; note: string | null; added_at: string }[]
+}
+
+async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "same-origin",
+  })
+  if (!response.ok) {
+    let message = `${path} returned ${response.status}`
+    try {
+      const payload = await response.json()
+      if (typeof payload.detail === "string") message = payload.detail
+      else if (Array.isArray(payload.detail) && payload.detail[0]?.msg) {
+        message = payload.detail[0].msg
+      }
+    } catch {
+      /* keep the default message */
+    }
+    throw new ApiError(message, response.status)
+  }
+  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
+}
+
+export const auth = {
+  me: () => request<Session>("/api/auth/me"),
+  signup: (email: string, password: string, displayName?: string) =>
+    send<{ user: AuthUser; limits: Limits }>("/api/auth/signup", "POST", {
+      email,
+      password,
+      display_name: displayName || null,
+    }),
+  login: (email: string, password: string) =>
+    send<{ user: AuthUser; limits: Limits }>("/api/auth/login", "POST", { email, password }),
+  logout: () => send<{ status: string }>("/api/auth/logout", "POST"),
+}
+
+export const workspace = {
+  screens: () => request<{ screens: SavedScreen[] }>("/api/screens"),
+  saveScreen: (name: string, query: string, description?: string) =>
+    send<SavedScreen>("/api/screens", "POST", { name, query, description: description || null }),
+  deleteScreen: (id: number) => send<void>(`/api/screens/${id}`, "DELETE"),
+  runScreen: (id: number) => send<ScreenResult>(`/api/screens/${id}/run`, "POST"),
+  watchlists: () => request<{ watchlists: Watchlist[] }>("/api/watchlists"),
+  createWatchlist: (name: string) =>
+    send<{ id: number; name: string }>("/api/watchlists", "POST", { name }),
+  deleteWatchlist: (id: number) => send<void>(`/api/watchlists/${id}`, "DELETE"),
+  addSymbol: (id: number, symbol: string) =>
+    send<unknown>(`/api/watchlists/${id}/items`, "POST", { symbol }),
+  removeSymbol: (id: number, symbol: string) =>
+    send<void>(`/api/watchlists/${id}/items/${symbol}`, "DELETE"),
+  exportUrl: (query: string) => `/api/export/screen?query=${encodeURIComponent(query)}`,
+}

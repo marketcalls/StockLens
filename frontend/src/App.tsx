@@ -1,6 +1,9 @@
 import { Link, Route, Routes, useLocation } from "react-router-dom"
 
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AuthPage } from "@/features/auth/auth-page"
+import { WorkspacePage } from "@/features/workspace/workspace-page"
+import { useAuth } from "@/providers/auth-provider"
 import { CompanyPage } from "@/features/company/company-page"
 import { StatusPanel } from "@/features/meta/status-panel"
 import { ScreenerPage } from "@/features/screener/screener-page"
@@ -31,6 +34,7 @@ function Header() {
         )}
 
         <nav className="flex shrink-0 items-center gap-1">
+          <AccountNav />
           <Link
             to="/screens"
             className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
@@ -47,6 +51,47 @@ function Header() {
         </nav>
       </div>
     </header>
+  )
+}
+
+function AccountNav() {
+  const { signedIn, user, logout, isLoading } = useAuth()
+  if (isLoading) return null
+  if (!signedIn) {
+    return (
+      <>
+        <Link
+          to="/login"
+          className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+        >
+          Sign in
+        </Link>
+        <Link
+          to="/signup"
+          className="rounded-md border border-primary px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-primary hover:text-primary-foreground"
+        >
+          Get free account
+        </Link>
+      </>
+    )
+  }
+  return (
+    <>
+      <Link
+        to="/workspace"
+        className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+        title={user?.email ?? undefined}
+      >
+        {user?.display_name || "Workspace"}
+      </Link>
+      <button
+        type="button"
+        onClick={() => logout()}
+        className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+      >
+        Sign out
+      </button>
+    </>
   )
 }
 
@@ -82,6 +127,9 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/company/:symbol" element={<CompanyPage />} />
           <Route path="/screens" element={<ScreenerPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/login" element={<AuthPage mode="login" />} />
+          <Route path="/signup" element={<AuthPage mode="signup" />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

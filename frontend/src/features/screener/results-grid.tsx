@@ -110,7 +110,13 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
                     {(result.total - result.returned).toLocaleString("en-IN")} more{" "}
                     {result.total - result.returned === 1 ? "company matches" : "companies match"}.
                   </span>{" "}
-                  <span className="font-medium">Sign up to see all {result.total.toLocaleString("en-IN")}.</span>
+                  <Link
+                    to="/signup?next=/screens"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Create a free account to see all{" "}
+                    {result.total.toLocaleString("en-IN")}.
+                  </Link>
                 </td>
               </tr>
             ) : null}
