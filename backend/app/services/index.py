@@ -18,6 +18,7 @@ from app.db.layer2 import (
     index_return,
 )
 from app.services.errors import NotFound
+from app.services.stats import median_of
 
 HORIZONS = ("1M", "3M", "6M", "1Y", "3Y", "5Y", "7Y", "10Y")
 
@@ -192,12 +193,13 @@ def detail(index_symbol: str, *, engine: Engine | None = None) -> dict[str, Any]
     POSITIVE_ONLY = {"pe", "pb"}
 
     def median(column: str) -> float | None:
-        values = sorted(
-            c[column]
-            for c in with_data
-            if c.get(column) is not None and not (column in POSITIVE_ONLY and c[column] <= 0)
+        return median_of(
+            [
+                c[column]
+                for c in with_data
+                if c.get(column) is not None and not (column in POSITIVE_ONLY and c[column] <= 0)
+            ]
         )
-        return values[len(values) // 2] if values else None
 
     return {
         "index_symbol": actual,

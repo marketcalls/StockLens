@@ -28,6 +28,7 @@ from app.db.layer2 import (
     company as company_table,
 )
 from app.services.errors import NotFound
+from app.services.stats import median_of
 
 StatementCode = Literal["pl", "bs", "cf"]
 PeriodKind = Literal["annual", "quarterly", "ttm"]
@@ -508,8 +509,14 @@ def peers(symbol: str, limit: int = 10, *, engine: Engine | None = None) -> dict
     rows = [dict(r) for r in rows]
     medians: dict[str, float | None] = {}
     for column in ("pe", "market_cap", "dividend_yield", "returnonequity", "returnoncapital"):
-        values = sorted(p[column] for p in rows if p.get(column) is not None)
-        medians[column] = values[len(values) // 2] if values else None
+        # Loss-makers have no earnings multiple, same as on an index page: a
+        # negative P/E is arithmetic, not a cheap valuation.
+        values = [
+            p[column]
+            for p in rows
+            if p.get(column) is not None and not (column == "pe" and p[column] <= 0)
+        ]
+        medians[column] = median_of(values)
 
     return {
         "symbol": symbol,
@@ -558,7 +565,10 @@ def corporate_actions(symbol: str, *, engine: Engine | None = None) -> dict[str,
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
         grouped[r["action"]].append(dict(r))
-    return {"symbol": symbol, "actions": grouped}
+    # A plain dict, not the defaultdict it was built with. Handed back as-is, a
+    # caller reading actions["split"] on a company that never split would get an
+    # empty list and quietly believe the question was answered.
+    return {"symbol": symbol, "actions": dict(grouped)}
 
 
 def largest(limit: int = 50, *, engine: Engine | None = None) -> dict[str, Any]:
