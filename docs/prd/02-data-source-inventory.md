@@ -130,8 +130,57 @@ A genuinely different shape, not a subset: `interestEarned`,
 `taxExpense`, `eps`, `dilutedOutstandingShares`
 
 **Design consequence:** the P&L table renderer must be schema-aware. A bank company page
-shows NII, GNPA % and CET1, not Operating Profit and OPM %. Insurance is a third schema.
-The field reference guide documents all three variants.
+shows NII, GNPA % and CET1, not Operating Profit and OPM %.
+
+### 6.3a Schema families - measured, not assumed (2026-08-06)
+
+`python -m app.ingest.discover` probed 22 companies spanning large caps, public and private
+banks, a small finance bank, NBFCs, an AMC, a broker, an exchange, life insurers and a
+general insurer. Three assumptions in the original draft were wrong:
+
+**There are four families, not three.**
+
+| Family | Discriminating fields | Confirmed members |
+| --- | ---: | --- |
+| `general` | 37 | RELIANCE, ITC, TCS, MARUTI, SUNPHARMA, NTPC, TATASTEEL, BSE, BAJFINANCE, LICHSGFIN, HDFCAMC, ANGELONE, CHOLAFIN |
+| `bank` | 26 | HDFCBANK, SBIN, BANKBARODA, AUBANK |
+| `life_insurance` | 67 | HDFCLIFE, LICI, SBILIFE, ICICIPRULI |
+| `general_insurance` | 42 | ICICIGI |
+
+Life and general insurers share only **14** fields. Treating "insurance" as one schema, as
+the draft did, would render both wrongly.
+
+**NBFCs, AMCs, brokers and exchanges use the `general` schema.** BAJFINANCE, CHOLAFIN,
+LICHSGFIN, HDFCAMC, ANGELONE and BSE all matched it. This resolves
+[Q5](09-open-questions.md#q5-how-many-distinct-statement-schemas-are-there-really). Note that
+`interestEarned` appears in both the general and bank families, so it must never decide a
+classification on its own.
+
+**Membership needs subset containment, not exact equality.** AUBANK returns 25 of the bank
+family's 26 fields - it has no subsidiaries, so no minority-interest line. An exact-match
+rule strands it in a family of one. The classifier scores each family by the share of its
+markers present; all 22 companies classify correctly at confidence 1.00.
+
+Six fields appear in every family and carry no signal: `eps`, `income`, `period_start`,
+`period_end`, `result_date`, `year`.
+
+### 6.3b The quote feed is not the company universe
+
+`/api/v1/quote` returns **6,747 keys** against a symbol master of **5,630**. The extra 1,146
+are not additional companies:
+
+| Kind | Count | Note |
+| --- | ---: | --- |
+| BSE scrip codes duplicating a company already in the master | **242** | Same company, keyed by `bse_code` as well as by ticker |
+| BSE scrip codes with no symbol-master entry | 376 | BSE-only listings, no fundamentals available |
+| Alphabetic non-companies | 528 | ETFs (`ABSLLIQUID`, `ABSLNN50ET`), rights entitlements (`5PAISA-RE`) |
+
+**Design consequence:** the screener universe is the **symbol master**, joined by `symbol`.
+Treating quote keys as the universe would double-count 242 companies and screen 528
+instruments that have no financial statements. A data-quality check pins this.
+
+29 symbol-master entries had no quote in the 2026-08-06 feed, and 28 index constituents have
+no symbol-master entry, so index-scoped screens will silently omit those unless flagged.
 
 ### 6.4 Basic financials - derived aggregates
 - **pl**: `ebit`, `ebitda`, `grossIncome`, `operatingProfit`, `operatingRevenue`,

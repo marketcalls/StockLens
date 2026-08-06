@@ -1,11 +1,13 @@
 """Ingestion worker CLI.
 
-Phase 0 supports fetching one symbol's full endpoint matrix and the
-universe-wide endpoints, storing every response in the Layer 1 raw archive.
+    python -m app.ingest.worker universe        # symbol master, indices, constituents
+    python -m app.ingest.worker prices          # all 5,630 quotes in one call
+    python -m app.ingest.worker fetch RELIANCE  # one company's full matrix
+    python -m app.ingest.worker plan RELIANCE   # show the plan without fetching
+    python -m app.ingest.worker raw-universe    # archive universe endpoints, raw only
 
-    python -m app.ingest.worker fetch RELIANCE
-    python -m app.ingest.worker universe
-    python -m app.ingest.worker plan RELIANCE
+`universe` and `prices` normalise into Layer 2. `fetch` and `raw-universe`
+archive to Layer 1 only; per-symbol normalisation lands in the next slice.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from app.finedge.client import (
     FinEdgeParameterError,
 )
 from app.finedge.endpoints import Call, symbol_endpoint_matrix, universe_endpoints
+from app.ingest.jobs import run_price_refresh, run_universe_sync
 from app.ingest.store import finish_run, record_task, start_run, store_raw
 from app.logging_setup import configure_logging
 
@@ -125,7 +128,9 @@ def main(argv: list[str] | None = None) -> int:
     fetch = sub.add_parser("fetch", help="Fetch one symbol's full endpoint matrix")
     fetch.add_argument("symbol")
 
-    sub.add_parser("universe", help="Fetch the universe-wide endpoints")
+    sub.add_parser("universe", help="Sync symbol master, indices and constituents")
+    sub.add_parser("prices", help="Refresh quotes for the whole universe in one call")
+    sub.add_parser("raw-universe", help="Archive the universe-wide endpoints as raw only")
 
     plan = sub.add_parser("plan", help="Print the call plan without fetching")
     plan.add_argument("symbol")
@@ -149,12 +154,17 @@ def main(argv: list[str] | None = None) -> int:
         symbol = args.symbol.upper()
         calls = symbol_endpoint_matrix(symbol)
         result = asyncio.run(run_calls(calls, job_kind="backfill", scope={"symbols": [symbol]}))
+    elif args.command == "universe":
+        result = asyncio.run(run_universe_sync())
+    elif args.command == "prices":
+        result = asyncio.run(run_price_refresh())
     else:
         calls = universe_endpoints()
         result = asyncio.run(run_calls(calls, job_kind="universe"))
 
     print("\n".join(f"{k}: {v}" for k, v in result.items()))
-    return 0 if result["failed"] == 0 else 1
+    # The universe and price jobs report no "failed" key; absence means none.
+    return 0 if result.get("failed", 0) == 0 else 1
 
 
 if __name__ == "__main__":

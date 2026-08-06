@@ -8,8 +8,11 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.db.engine import get_engine, get_raw_engine
+from app.db.layer2 import create_layer2
 from app.db.models import create_all
 from app.finedge.client import FinEdgeClient
+from app.ingest.layer2_store import counts as layer2_counts
+from app.ingest.quality import summary as quality_summary
 from app.ingest.store import raw_summary, run_summary
 
 router = APIRouter(prefix="/api/meta", tags=["meta"])
@@ -49,3 +52,19 @@ def freshness() -> dict[str, Any]:
         "raw": raw_summary(raw_engine),
         "recent_runs": run_summary(core_engine),
     }
+
+
+@router.get("/quality")
+def quality() -> dict[str, Any]:
+    """Data quality checks over the normalised tables."""
+    core_engine = get_engine()
+    create_layer2(core_engine)
+    return quality_summary(core_engine)
+
+
+@router.get("/counts")
+def row_counts() -> dict[str, Any]:
+    """Row counts per normalised table."""
+    core_engine = get_engine()
+    create_layer2(core_engine)
+    return layer2_counts(core_engine)
