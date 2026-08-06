@@ -10,9 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, text
 
 from app.db.layer2 import company, index_constituent, price_daily, quote, statement_period
+
+# The best real Indian ten-year records sit just under fifty percent annualised.
+PLAUSIBLE_10Y_CAGR = 50.0
 
 SAMPLE_SIZE = 10
 
@@ -172,6 +175,39 @@ def run_checks(engine: Engine) -> list[Check]:
                 "Daily move beyond 50 percent. Legitimate for a newly listed or "
                 "illiquid counter, worth a look otherwise.",
                 [],
+            )
+        )
+
+        # Upstream carries price history from before a company listed. KIMS
+        # floated in 2021 at about Rs. 825, and its series begins in 2014 at
+        # Rs. 0.96 - a synthetic back-history that turns into an 84 percent
+        # ten-year return. It cannot be told apart from a real multi-bagger
+        # without listing dates, and the genuine ones here reach 48 percent
+        # (Radico, KEI, Adani Enterprises), so this reports rather than removes.
+        implausible_cagr = conn.execute(
+            text("SELECT COUNT(*) FROM company_snapshot WHERE price_cagr_10y > :ceiling"),
+            {"ceiling": PLAUSIBLE_10Y_CAGR},
+        ).scalar_one()
+        cagr_symbols = [
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT symbol FROM company_snapshot WHERE price_cagr_10y > :ceiling"
+                    " ORDER BY price_cagr_10y DESC LIMIT 10"
+                ),
+                {"ceiling": PLAUSIBLE_10Y_CAGR},
+            )
+        ]
+        checks.append(
+            Check(
+                "implausible_ten_year_return",
+                "warning",
+                implausible_cagr,
+                f"Ten-year annualised return above {PLAUSIBLE_10Y_CAGR:.0f} percent. "
+                "Usually price history from before the company listed, which "
+                "upstream supplies and we cannot distinguish from a genuine "
+                "multi-bagger. Reported, not removed.",
+                cagr_symbols,
             )
         )
 

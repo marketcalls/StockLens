@@ -499,3 +499,71 @@ class TestTrailingDividend:
 
     def test_a_company_that_pays_nothing_is_absent_not_zero(self, db: Engine) -> None:
         assert "NOPAYER" not in self._dividends(db, [("X", "2026-06-05", 6.0)])
+
+
+class TestPriceCagrHorizon:
+    """A "three year" return must be measured over three years.
+
+    The base price used to be found by counting a fixed 248 trading days per
+    year backwards. A company whose history has gaps - suspended, thinly traded,
+    relisted after a demerger - runs out of sessions long before it runs out of
+    calendar. United Spirits' three-year figure was measured across 13.46 years
+    and then annualised as though it were three; 360 ONE's five-year figure
+    spanned 9.12.
+    """
+
+    @staticmethod
+    def _dates(start: str, count: int, step_days: int) -> list[str]:
+        from datetime import date, timedelta
+
+        begin = date.fromisoformat(start)
+        return [(begin + timedelta(days=i * step_days)).isoformat() for i in range(count)]
+
+    def test_a_dense_history_finds_the_price_a_year_back(self) -> None:
+        from datetime import date, timedelta
+
+        from app.ingest.materialise import _price_years_ago
+
+        # Daily sessions for four years.
+        dates = self._dates("2022-08-07", 1460, 1)
+        closes = [100.0 + i for i in range(len(dates))]
+
+        # Derived from the last date in the series, not assumed: 1460 daily
+        # steps from 2022-08-07 ends on 2026-08-05, not 2026-08-07.
+        a_year_back = (date.fromisoformat(dates[-1]) - timedelta(days=365)).isoformat()
+        assert _price_years_ago(dates, closes, 1) == closes[dates.index(a_year_back)]
+
+    def test_a_gappy_history_gives_no_figure_rather_than_a_wrong_one(self) -> None:
+        from app.ingest.materialise import _price_years_ago
+
+        # Only 300 sessions, but spread across thirteen years. Counting 3 * 248
+        # sessions back would run off the start; by date there is no price
+        # anywhere near three years ago either, because the gap straddles it.
+        dates = self._dates("2013-01-01", 40, 16) + self._dates("2026-01-01", 5, 1)
+        closes = [10.0] * 40 + [900.0] * 5
+        assert _price_years_ago(dates, closes, 3) is None
+
+    def test_a_price_close_enough_to_the_mark_is_used(self) -> None:
+        from app.ingest.materialise import _price_years_ago
+
+        # Weekly sessions: the nearest to three years back is within days.
+        dates = self._dates("2020-01-01", 350, 7)
+        closes = [float(i) for i in range(len(dates))]
+        assert _price_years_ago(dates, closes, 3) is not None
+
+    def test_a_history_shorter_than_the_horizon_gives_nothing(self) -> None:
+        from app.ingest.materialise import _price_years_ago
+
+        dates = self._dates("2025-01-01", 400, 1)
+        closes = [100.0] * 400
+        assert _price_years_ago(dates, closes, 10) is None
+
+    def test_the_tolerance_is_proportional_to_the_horizon(self) -> None:
+        from app.ingest.materialise import _price_years_ago
+
+        # Six months adrift is fatal on a one-year horizon and fine on ten.
+        one_year_gap = ["2025-02-07", "2026-08-07"]
+        assert _price_years_ago(one_year_gap, [10.0, 20.0], 1) is None
+
+        ten_year_gap = ["2016-02-07", "2026-08-07"]
+        assert _price_years_ago(ten_year_gap, [10.0, 20.0], 10) is not None

@@ -15,8 +15,9 @@ Two rules govern which period feeds a column:
 from __future__ import annotations
 
 import logging
+from bisect import bisect_right
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Engine, select, text
@@ -172,6 +173,32 @@ def _load_metrics(engine: Engine) -> dict[str, dict[tuple[str, str], float]]:
     return out
 
 
+def _price_years_ago(dates: list[str], closes: list[float], years: int) -> float | None:
+    """The close nearest to `years` before the latest date, or None.
+
+    Counting a fixed number of trading days back is not the same as going back a
+    year. A company whose history has gaps - suspended, thinly traded, relisted
+    after a demerger - runs out of sessions long before it runs out of calendar.
+    United Spirits' "three year" figure was measured across 13.46 years, then
+    annualised as though it were three; 360 ONE's five-year figure spanned 9.12.
+
+    So the date is found by date. If the closest session is more than a tenth of
+    the period away from the mark, there is no honest figure to report and this
+    returns None rather than a number labelled with the wrong horizon.
+    """
+    target = date.fromisoformat(dates[-1]) - timedelta(days=round(years * 365.25))
+    mark = target.isoformat()
+
+    at = bisect_right(dates, mark) - 1
+    if at < 0:
+        return None
+
+    span_days = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[at])).days
+    if abs(span_days - years * 365.25) > years * 365.25 * 0.1:
+        return None
+    return closes[at]
+
+
 def _load_prices(engine: Engine) -> dict[str, dict[str, float]]:
     """Price-derived columns: CAGRs, moving averages, traded value."""
     series: dict[str, list[tuple[str, float, float]]] = defaultdict(list)
@@ -194,18 +221,17 @@ def _load_prices(engine: Engine) -> dict[str, dict[str, float]]:
         latest = closes[-1]
         values: dict[str, float] = {}
 
+        dates = [p[0] for p in points]
         for years, key in (
             (1, "price_cagr_1y"),
             (3, "price_cagr_3y"),
             (5, "price_cagr_5y"),
             (10, "price_cagr_10y"),
         ):
-            offset = years * TRADING_DAYS_PER_YEAR
-            if len(closes) > offset:
-                past = closes[-offset - 1]
-                if past > 0:
-                    # Annualised, so 3Y and 5Y are comparable to 1Y.
-                    values[key] = ((latest / past) ** (1 / years) - 1) * 100
+            past = _price_years_ago(dates, closes, years)
+            if past is not None and past > 0:
+                # Annualised, so 3Y and 5Y are comparable to 1Y.
+                values[key] = ((latest / past) ** (1 / years) - 1) * 100
 
         if len(closes) >= 50:
             values["dma_50"] = sum(closes[-50:]) / 50
