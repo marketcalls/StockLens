@@ -65,7 +65,7 @@ correct for one self-hosted instance and would need Redis behind a load balancer
 | `GET /api/companies?limit=` | Largest by market cap |
 | `GET /api/companies/{symbol}` | Profile, quote, index membership, key ratios |
 | `GET /api/companies/{symbol}/statements` | `statement=pl\|bs\|cf`, `period=annual\|quarterly\|ttm`, `type=c\|s` |
-| `GET /api/companies/{symbol}/ratios` | `family=profitability\|liquidity\|solvency\|efficiency\|valuation` |
+| `GET /api/companies/{symbol}/ratios` | `family=profitability\|leverage\|liquidity\|efficiency` |
 | `GET /api/companies/{symbol}/shareholding` | Holding by group, by quarter |
 | `GET /api/companies/{symbol}/peers` | Sector peers with medians |
 | `GET /api/companies/{symbol}/prices?limit=` | Daily OHLCV, oldest first |
@@ -81,6 +81,13 @@ rows you are given.
 **Consolidated is the default and may not exist.** Only 2,510 of 5,630 companies
 file consolidated statements. Ask for `type=c` and the response may come back
 `statement_type: "s"`; the field tells you what you actually got.
+
+**Ratio families take either name.** FinEdge's codes are `pr`, `le`, `li` and
+`ef`; the readable names `profitability`, `leverage`, `liquidity` and
+`efficiency` work too, and `solvency` is accepted for leverage. An unknown name
+returns 404 listing the real ones, rather than an empty result that would look
+like a company with no ratios. Valuation ratios are not here — P/E, P/B and the
+rest come back with the company profile and are screenable.
 
 **Check `available` before reading `rows`.** A company whose statements have not
 been downloaded yet returns `available: false` with a `reason` and empty rows.

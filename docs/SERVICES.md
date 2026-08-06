@@ -70,6 +70,12 @@ by family. Read the rows rather than looking for a label you expect.
 `code` is `pl`, `bs` or `cf`. `period` is `annual`, `quarterly` or `ttm`.
 `statement_type` is `c` (consolidated) or `s` (standalone).
 
+`ratios` takes a `family` of `profitability`, `leverage`, `liquidity` or
+`efficiency` — or FinEdge's own codes `pr`, `le`, `li`, `ef`, which is what the
+stored rows use. `solvency` is accepted for leverage. An unknown name raises
+`NotFound` listing the real ones rather than returning an empty result, which
+would read as a company that files no ratios.
+
 ### `services.screener`
 
 | Function | Returns |

@@ -110,3 +110,36 @@ def test_the_statement_envelope_does_not_change_shape_with_the_data(engines) -> 
         assert field in empty, f"the no-data branch dropped {field}"
     assert empty["schema_kind"] is None
     assert empty["rows"] == []
+
+
+def test_documented_ratio_families_actually_work(api_doc: str, engines) -> None:
+    """Parameter values in the docs must be values the API accepts.
+
+    The page listed `profitability|liquidity|solvency|efficiency|valuation`.
+    FinEdge stores the families as `pr`, `le`, `li` and `ef`, so every one of
+    those documented names returned an empty result - which reads as a company
+    that files no ratios, not as a name that does not exist. There was also no
+    valuation family at all.
+    """
+    import re
+
+    from app.db.layer2 import create_layer2
+    from app.services import company
+    from app.services.errors import NotFound
+
+    engine = engines[0]
+    create_layer2(engine)
+
+    documented = re.search(r"`family=([^`]+)`", api_doc)
+    assert documented, "docs/API.md should state the ratio families"
+    names = [n.strip() for n in documented.group(1).replace("family=", "").split(r"\|")]
+    assert names, "no family names parsed out of the docs"
+
+    for name in names:
+        try:
+            company.ratios("NOSUCHCO", name, engine=engine)
+        except NotFound as exc:
+            # An unknown company is fine; an unknown family is the bug.
+            assert "ratio family" not in exc.message, (
+                f"docs name a family that does not exist: {name}"
+            )

@@ -302,6 +302,21 @@ def statements(
     }
 
 
+# FinEdge names the ratio families with two-letter codes. Nobody guesses "le"
+# for leverage, so the readable name works too and is what the docs use.
+RATIO_FAMILIES: dict[str, str] = {
+    "pr": "profitability",
+    "le": "leverage",
+    "li": "liquidity",
+    "ef": "efficiency",
+}
+_RATIO_ALIASES: dict[str, str] = {
+    **{code: code for code in RATIO_FAMILIES},
+    **{name: code for code, name in RATIO_FAMILIES.items()},
+    "solvency": "le",  # what the leverage ratios are usually called
+}
+
+
 def ratios(
     symbol: str,
     family: str = "ef",
@@ -309,8 +324,25 @@ def ratios(
     *,
     engine: Engine | None = None,
 ) -> dict[str, Any]:
-    """A ratio family as a time series, newest last."""
+    """A ratio family as a time series, newest last.
+
+    `family` takes either FinEdge's code or the readable name: "pr" or
+    "profitability", "le"/"leverage"/"solvency", "li"/"liquidity",
+    "ef"/"efficiency".
+    """
     symbol = symbol.upper()
+    requested = family
+    family = _RATIO_ALIASES.get(family.strip().lower(), "")
+    if not family:
+        # Returning "available: false" here would claim the company has no such
+        # ratios, when in fact the name does not exist. A caller cannot tell
+        # those apart, and would go looking at the data.
+        raise NotFound(
+            f"No ratio family called {requested!r}. Use one of: "
+            + ", ".join(sorted(RATIO_FAMILIES.values())),
+            family=requested,
+            known=sorted(RATIO_FAMILIES.values()),
+        )
     with _engine(engine).connect() as conn:
         rows = (
             conn.execute(
