@@ -55,3 +55,11 @@ cp .env.example .env
 ```
 
 `.env` is gitignored. The FinEdge key must never reach the browser or a log line.
+
+## License
+
+[MIT](LICENSE).
+
+The licence covers the StockLens source and documentation only. Market data served through
+the application is licensed separately by FinEdge and is not redistributed under these terms
+(see [docs/prd/09-open-questions.md](docs/prd/09-open-questions.md) Q3).
