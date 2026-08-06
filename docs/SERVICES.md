@@ -144,6 +144,22 @@ here can reach into another process.
 run reaches each company, so a task ratio reads as complete throughout. The full universe is roughly 332,000 calls and
 eighteen hours.
 
+### `services.users`
+
+| Function | Returns |
+| --- | --- |
+| `listing(term=, role=, include_inactive=)` | Accounts with what each owns |
+| `detail(user_id)` | One account, its screens, lists and audit trail |
+| `change_role(actor, user_id, role)` | Moves an account between roles |
+| `set_active(actor, user_id, active)` | Suspends or restores |
+| `invite(actor, email, role)` | Creates an account, returns a one-time password |
+| `roles()` / `stats()` | What can be assigned, and headline counts |
+
+Every mutating function takes the acting user as its first argument, because the
+rules depend on who is asking: you cannot lower your own role, grant a role above
+your own, act on a super administrator unless you are one, or remove the last
+active super administrator. Accounts are suspended, never deleted.
+
 ### `services.workspace`
 
 Saved screens and watchlists, all taking a `user_id` as the first argument.

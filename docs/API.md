@@ -1,6 +1,6 @@
 # HTTP API
 
-50 endpoints under `/api`. Interactive docs are at `/docs` when the server is
+57 endpoints under `/api`. Interactive docs are at `/docs` when the server is
 running; this page covers the parts a schema cannot express — who may call what,
 what the units are, and where the results come from.
 
@@ -162,6 +162,33 @@ nothing, screen on something they do report.
 
 Signed-in only, and scoped to the owner — someone else's screen returns 404, not
 403, since 403 would confirm it exists.
+
+## Accounts — Admin and above
+
+| Route | Effect |
+| --- | --- |
+| `GET /api/users?q=&role=&include_inactive=` | Every account, with what each owns |
+| `GET /api/users/roles` | Roles that can be assigned |
+| `GET /api/users/stats` | Headline counts |
+| `GET /api/users/{user_id}` | One account, its screens, lists and audit trail |
+| `PATCH /api/users/{user_id}/role` | `{role}` |
+| `PATCH /api/users/{user_id}/active` | `{active}` — suspend or restore |
+| `POST /api/users` | `{email, role, display_name}` — returns a one-time password |
+
+**Accounts are suspended, never deleted.** The audit log refers to them, and a
+deleted account makes its own history unreadable.
+
+Four rules exist to stop an administrator locking everyone out, and they are
+enforced in the service rather than the route, so a script cannot go around them:
+
+- You cannot lower your own role, or deactivate yourself.
+- You cannot grant a role above your own.
+- An administrator cannot act on a super administrator.
+- The last active super administrator cannot be demoted or suspended.
+
+`POST /api/users` returns `one_time_password` once. A self-hosted install has no
+mail server, so there is nothing to send an invitation with; the password is
+stored only as a hash and cannot be recovered afterwards.
 
 ## Ingestion — Super Admin
 
