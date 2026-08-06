@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react"
 import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AdminPage } from "@/features/admin/admin-page"
+import { DiagnosticsPage } from "@/features/admin/diagnostics-page"
 import { PeoplePage } from "@/features/admin/people-page"
 import { AuthPage } from "@/features/auth/auth-page"
 import { CompanyPage } from "@/features/company/company-page"
@@ -29,7 +30,10 @@ const NAV = [
 function useNavItems() {
   const { limits } = useAuth()
   const items = [...NAV]
-  if (limits.can_admin) items.push({ to: "/admin/people", label: "People" })
+  if (limits.can_admin) {
+    items.push({ to: "/admin/people", label: "People" })
+    items.push({ to: "/admin/diagnostics", label: "Diagnostics" })
+  }
   if (limits.can_manage_platform) items.push({ to: "/admin", label: "Console" })
   return items
 }
@@ -240,6 +244,7 @@ export default function App() {
           <Route path="/status" element={<StatusPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/people" element={<PeoplePage />} />
+          <Route path="/admin/diagnostics" element={<DiagnosticsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

@@ -570,3 +570,42 @@ export const people = {
       display_name: displayName || null,
     }),
 }
+
+// ------------------------------------------------------------ diagnostics
+
+export type LogEntry = {
+  id: number
+  created_at: string
+  level: string
+  logger: string
+  message: string
+  traceback: string | null
+  path: string | null
+  method: string | null
+  status: number | null
+  actor_id: number | null
+}
+
+export type DiagnosticsHealth = {
+  checked_at: string
+  environment: string
+  errors_last_24h: number
+  warnings_last_24h: number
+  last_error: LogEntry | null
+  last_run: { id: string; job_kind: string; status: string; started_at: string } | null
+  process: { python: string; platform: string }
+  storage: Record<string, { path: string; bytes: number }>
+}
+
+export const diagnostics = {
+  health: () => request<DiagnosticsHealth>("/api/diagnostics/health"),
+  logs: (params: { level?: string; logger?: string; limit?: number } = {}) =>
+    request<{ total: number; by_level: Record<string, number>; entries: LogEntry[] }>(
+      `/api/diagnostics/logs?${qs({
+        level: params.level || undefined,
+        logger: params.logger || undefined,
+        limit: params.limit,
+      })}`,
+    ),
+  entry: (id: number) => request<LogEntry>(`/api/diagnostics/logs/${id}`),
+}
