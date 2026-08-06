@@ -136,15 +136,28 @@ def run_checks(engine: Engine) -> list[Check]:
         bad_prices = conn.execute(
             select(func.count()).select_from(price_daily).where(price_daily.c.close <= 0)
         ).scalar_one()
+        # An error-level check with no sample cannot be acted on: it says
+        # something is wrong without saying where. Name the symbols.
+        bad_price_symbols = [
+            r[0]
+            for r in conn.execute(
+                select(price_daily.c.symbol)
+                .where(price_daily.c.close <= 0)
+                .group_by(price_daily.c.symbol)
+                .order_by(func.count().desc())
+                .limit(10)
+            )
+        ]
         checks.append(
             Check(
                 "non_positive_close_price",
                 "error",
                 bad_prices,
                 "A close price of zero or below is not a price. FinEdge emits "
-                "all-zero rows for non-trading sessions; they are dropped at "
-                "normalisation rather than stored.",
-                [],
+                "all-zero rows for non-trading sessions, and negative OHLC for "
+                "some pre-demerger history; both are dropped at normalisation "
+                "rather than stored.",
+                bad_price_symbols,
             )
         )
 

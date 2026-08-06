@@ -487,3 +487,108 @@ class TestIndexQuoteValuation:
         # silently deletes a published book value.
         row = self._quote(pe=0, pb=3.02)
         assert row["pb"] == 3.02
+
+
+class TestPriceRowsThatAreNotPrices:
+    """Rows FinEdge returns that must not be stored as observations."""
+
+    def _payload(self, **over):
+        row = {
+            "quote_date": "2018-06-28",
+            "open_price": 100.0,
+            "high_price": 105.0,
+            "low_price": 99.0,
+            "close_price": 102.0,
+            "volume": 1000.0,
+        }
+        row.update(over)
+        return {"price": [row]}
+
+    def test_a_normal_session_is_kept(self):
+        assert len(normalise_prices("X", self._payload())) == 1
+
+    def test_an_all_zero_session_is_dropped(self):
+        # Diwali Muhurat sessions and special Saturday sittings come back as all
+        # zeros. Stored literally they draw a spike to the axis.
+        payload = self._payload(open_price=0, high_price=0, low_price=0, close_price=0, volume=0)
+        assert normalise_prices("X", payload) == []
+
+    def test_a_negative_close_is_dropped(self):
+        # ADANIGREEN's first six sessions in June 2018 come back with every OHLC
+        # field below zero, on real volume - the demerger adjustment applied to
+        # history from before it listed separately. A share cannot be worth less
+        # than nothing.
+        payload = self._payload(
+            open_price=-11.95, high_price=-11.0, low_price=-13.8, close_price=-11.65
+        )
+        assert normalise_prices("ADANIGREEN", payload) == []
+
+    def test_a_negative_low_alone_is_dropped(self):
+        # A positive close with a negative low is still not a real session.
+        payload = self._payload(low_price=-5.0)
+        assert normalise_prices("X", payload) == []
+
+    def test_a_zero_volume_session_with_real_prices_is_kept(self):
+        # An illiquid day is a real observation: the price stood somewhere even
+        # though nothing changed hands. Only the price being absurd disqualifies
+        # the row.
+        assert len(normalise_prices("X", self._payload(volume=0))) == 1
+
+
+class TestQuotesThatAreNotQuotes:
+    """A share that did not trade has no price, which is not the same as zero."""
+
+    def _payload(self, **over):
+        data = {
+            "change": "0.00%",
+            "current_price": 0,
+            "open_price": 0,
+            "high_price": 0,
+            "low_price": 0,
+            "high52": 0,
+            "low52": 0,
+            "market_cap": 0,
+            "shares": 0,
+            "volume": 0,
+        }
+        data.update(over)
+        return normalise_quotes({"ILLIQUID": data})[0]
+
+    def test_a_zero_price_is_absent_not_zero(self):
+        # Corona Remedies came back at 0.00 against a Rs. 12,461 Cr market cap.
+        # Stored as zero it shows Rs. 0.00 on the page and matches a screen for
+        # `Current Price < 100`.
+        assert self._payload()["current_price"] is None
+
+    def test_a_minus_hundred_change_beside_a_missing_price_is_dropped(self):
+        # 59 companies came back at -100%. The change is computed from the price
+        # that is missing, so it is not a measurement either.
+        assert self._payload(change="-100.00%")["change_pct"] is None
+
+    def test_a_real_minus_hundred_change_is_kept_when_there_is_a_price(self):
+        # Guard the rule above: it must key off the missing price, not the number.
+        row = self._payload(current_price=5.0, change="-100.00%")
+        assert row["current_price"] == 5.0
+        assert row["change_pct"] == -100.0
+
+    def test_zero_market_cap_and_share_count_are_absent(self):
+        row = self._payload()
+        assert row["market_cap"] is None
+        assert row["shares"] is None
+
+    def test_zero_volume_survives_as_a_real_observation(self):
+        # Nothing changed hands is a fact about the day, unlike a price of zero.
+        assert self._payload()["volume"] == 0.0
+
+    def test_a_normal_quote_is_untouched(self):
+        row = self._payload(
+            current_price=1325, change="3.43%", market_cap=1793061.38, high52=1611.2
+        )
+        assert row["current_price"] == 1325
+        assert row["change_pct"] == 3.43
+        assert row["market_cap"] == 1793061.38
+        assert row["high52"] == 1611.2
+
+    def test_a_flat_day_keeps_its_zero_change(self):
+        # 0% is a measurement: the price did not move.
+        assert self._payload(current_price=100, change="0.00%")["change_pct"] == 0.0

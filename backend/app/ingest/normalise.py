@@ -155,24 +155,44 @@ def normalise_quotes(payload: Any) -> list[dict[str, Any]]:
     for symbol, data in payload.items():
         if not isinstance(data, dict) or not data:
             continue
+
+        # A listed share does not trade at exactly zero. Illiquid BSE small caps
+        # that saw no trade come back with every price field at 0 and a change of
+        # -100%, which is the feed saying "no price today", not a company that
+        # became worthless. Stored literally, Corona Remedies reads as Rs. 0.00
+        # against a Rs. 12,461 Cr market cap, and a screen for
+        # `Current Price < 100` matches it.
+        price = _price_or_none(parse_number(data.get("current_price")))
+        change = parse_percent_string(data.get("change"))
+        if price is None and change == -100:
+            # The change is computed from the price that is missing, so it is
+            # not a measurement either.
+            change = None
+
         rows.append(
             {
                 "symbol": symbol,
-                "current_price": parse_number(data.get("current_price")),
-                "open_price": parse_number(data.get("open_price")),
-                "high_price": parse_number(data.get("high_price")),
-                "low_price": parse_number(data.get("low_price")),
+                "current_price": price,
+                "open_price": _price_or_none(parse_number(data.get("open_price"))),
+                "high_price": _price_or_none(parse_number(data.get("high_price"))),
+                "low_price": _price_or_none(parse_number(data.get("low_price"))),
+                # Volume of zero is a real observation: nothing changed hands.
                 "volume": parse_number(data.get("volume")),
-                "change_pct": parse_percent_string(data.get("change")),
-                "high52": parse_number(data.get("high52")),
-                "low52": parse_number(data.get("low52")),
-                "market_cap": parse_number(data.get("market_cap")),
-                "shares": parse_number(data.get("shares")),
+                "change_pct": change,
+                "high52": _price_or_none(parse_number(data.get("high52"))),
+                "low52": _price_or_none(parse_number(data.get("low52"))),
+                "market_cap": _price_or_none(parse_number(data.get("market_cap"))),
+                "shares": _price_or_none(parse_number(data.get("shares"))),
                 "trade_time": data.get("tradetime"),
                 "updated_at": now,
             }
         )
     return rows
+
+
+def _price_or_none(value: float | None) -> float | None:
+    """Zero and below are absent figures for a price or a size, not measurements."""
+    return None if value is not None and value <= 0 else value
 
 
 def normalise_statements(
@@ -397,6 +417,18 @@ def normalise_prices(symbol: str, payload: Any) -> list[dict[str, Any]]:
         # spike to zero on every price chart.
         if all(v in (0, None) for v in values.values()):
             continue
+
+        # A negative price is not a price. ADANIGREEN's first six sessions in
+        # June 2018 come back with every OHLC field below zero, on real volume -
+        # the demerger adjustment applied to history from before it listed
+        # separately. Kept, they draw a chart that dips under the axis and poison
+        # any return computed across them.
+        close = values["close"]
+        if close is not None and close <= 0:
+            continue
+        if any(v is not None and v < 0 for v in (values["open"], values["high"], values["low"])):
+            continue
+
         rows.append({"symbol": symbol, "quote_date": quote_date, **values})
     return rows
 
