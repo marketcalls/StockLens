@@ -108,6 +108,14 @@ def release(run_id: str, user: dict = Depends(require_super_admin)) -> dict[str,
     return result
 
 
+@router.post("/repair")
+def repair(user: dict = Depends(require_super_admin)) -> dict[str, Any]:
+    """Re-apply the normalisation rules to data already stored. No FinEdge calls."""
+    result = ingest.repair()
+    record_audit(get_engine(), actor_id=user["id"], action="ingest.repair", detail=result)
+    return result
+
+
 @router.get("/quality")
 def quality() -> dict[str, Any]:
     return ingest.quality()

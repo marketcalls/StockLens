@@ -195,6 +195,19 @@ export function AdminPage() {
     onError: complain("The rebuild failed."),
   })
 
+  const repairData = useMutation({
+    mutationFn: superadmin.repair,
+    onSuccess: (result) => {
+      report(
+        result.total
+          ? `Repaired ${n(result.total)} rows: ${n(result.price_rows_removed)} prices removed, ${n(result.quote_rows_corrected)} quotes corrected.`
+          : "Nothing to repair - every row already matches the current rules.",
+      )
+      refresh()
+    },
+    onError: complain("The repair pass failed."),
+  })
+
   const backfill = useMutation({
     mutationFn: () => {
       const parsed = Number.parseInt(backfillLimit, 10)
@@ -306,6 +319,14 @@ export function AdminPage() {
           onRun={() => prices.mutate()}
           disabled={running}
           pending={prices.isPending}
+        />
+        <Action
+          label="Re-apply the data rules"
+          description="Fixes rows stored before a rule changed - zero prices, absent index valuations. A long download keeps writing with the code it started with."
+          cost="0 calls · seconds"
+          onRun={() => repairData.mutate()}
+          disabled={running}
+          pending={repairData.isPending}
         />
         <Action
           label="Rebuild the screener table"

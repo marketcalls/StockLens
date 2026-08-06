@@ -123,6 +123,7 @@ constituent carries `in_universe`.
 | `start_price_refresh()` | Every company's quote, one call |
 | `start_backfill(limit=, symbols=, call_budget=)` | Background download |
 | `rebuild_snapshot()` | Re-materialise the screener table |
+| `repair()` | Re-apply the data rules to rows already stored |
 | `release_stuck_run(run_id)` | Clear a run whose process died |
 | `quality()` | Data quality checks |
 

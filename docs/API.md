@@ -1,6 +1,6 @@
 # HTTP API
 
-49 endpoints under `/api`. Interactive docs are at `/docs` when the server is
+50 endpoints under `/api`. Interactive docs are at `/docs` when the server is
 running; this page covers the parts a schema cannot express — who may call what,
 what the units are, and where the results come from.
 
@@ -174,6 +174,7 @@ Signed-in only, and scoped to the owner — someone else's screen returns 404, n
 | `POST /api/superadmin/prices` | Every company's quote, one call |
 | `POST /api/superadmin/backfill` | `{limit, symbols, call_budget}` — background |
 | `POST /api/superadmin/materialise` | Rebuild the screener table |
+| `POST /api/superadmin/repair` | Re-apply the data rules to stored rows |
 | `POST /api/superadmin/runs/{run_id}/release` | Clear a run whose process died |
 | `GET /api/superadmin/quality` | Data quality checks |
 

@@ -505,6 +505,7 @@ export const superadmin = {
       call_budget: body.call_budget ?? null,
     }),
   materialise: () => send<Record<string, unknown>>("/api/superadmin/materialise", "POST"),
+  repair: () => send<Record<string, number>>("/api/superadmin/repair", "POST"),
   release: (runId: string) =>
     send<{ run_id: string; cleared: boolean }>(`/api/superadmin/runs/${runId}/release`, "POST"),
   quality: () => request<Record<string, unknown>>("/api/superadmin/quality"),

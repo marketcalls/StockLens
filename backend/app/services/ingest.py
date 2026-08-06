@@ -25,6 +25,7 @@ from app.ingest.backfill import CALLS_PER_SYMBOL, backfill_symbols, dry_run, pri
 from app.ingest.jobs import run_price_refresh, run_universe_sync
 from app.ingest.materialise import materialise
 from app.ingest.quality import summary as quality_summary
+from app.ingest.repair import repair as repair_rows
 from app.ingest.store import finish_run, new_run_id
 from app.services.errors import Conflict, NotFound
 
@@ -355,6 +356,16 @@ def start_backfill(
 def rebuild_snapshot(*, engine: Engine | None = None) -> dict[str, Any]:
     """Re-materialise the screener table from the normalised tables."""
     return materialise(_engine(engine))
+
+
+def repair(*, engine: Engine | None = None) -> dict[str, Any]:
+    """Re-apply the normalisation rules to rows already stored.
+
+    Normalisation only runs when a row is fetched, so a rule added later leaves
+    everything downloaded before it untouched - including the rest of a backfill
+    that was already running when the rule landed. No FinEdge calls.
+    """
+    return repair_rows(_engine(engine))
 
 
 def quality(*, engine: Engine | None = None) -> dict[str, Any]:
