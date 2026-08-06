@@ -125,7 +125,10 @@ export default function App() {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          {/* Standalone at the bare path, consolidated on its own URL, so a
+              company page is linkable in either form. */}
           <Route path="/company/:symbol" element={<CompanyPage />} />
+          <Route path="/company/:symbol/consolidated" element={<CompanyPage />} />
           <Route path="/screens" element={<ScreenerPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/login" element={<AuthPage mode="login" />} />

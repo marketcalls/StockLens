@@ -1,5 +1,4 @@
-import { useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
   Area,
@@ -34,32 +33,33 @@ function Section({
   )
 }
 
-function Toggle<T extends string>({
-  options,
-  value,
-  onChange,
+function StatementSwitch({
+  symbol,
+  consolidated,
 }: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (v: T) => void
+  symbol: string
+  consolidated: boolean
 }) {
+  const options = [
+    { to: `/company/${symbol}`, label: "Standalone", active: !consolidated },
+    { to: `/company/${symbol}/consolidated`, label: "Consolidated", active: consolidated },
+  ]
   return (
-    <div className="inline-flex rounded-md border p-0.5" role="group">
+    <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Figures">
       {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
-          aria-pressed={value === option.value}
+        <Link
+          key={option.label}
+          to={option.to}
+          aria-current={option.active ? "page" : undefined}
           className={cn(
             "rounded px-3 py-1 text-xs font-medium transition",
-            value === option.value
+            option.active
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
           {option.label}
-        </button>
+        </Link>
       ))}
     </div>
   )
@@ -87,7 +87,11 @@ const SCHEMA_LABEL: Record<string, string> = {
 export function CompanyPage() {
   const { symbol = "" } = useParams()
   const upper = symbol.toUpperCase()
-  const [statementType, setStatementType] = useState<"c" | "s">("c")
+  // The URL decides which set of figures is shown, so either view can be
+  // linked to and shared: /company/RELIANCE is standalone,
+  // /company/RELIANCE/consolidated is consolidated.
+  const consolidated = useLocation().pathname.endsWith("/consolidated")
+  const statementType: "c" | "s" = consolidated ? "c" : "s"
 
   const company = useQuery({
     queryKey: ["company", upper],
@@ -154,10 +158,18 @@ export function CompanyPage() {
     close: p.close,
   }))
 
+  // The API falls back to the other set when the requested one is absent -
+  // only 2,510 of 5,630 companies file consolidated statements - and reports
+  // which it actually used. Label what is on screen, not what was asked for.
+  const shown = quarterly.data?.statement_type ?? statementType
+  const fellBack = Boolean(quarterly.data) && shown !== statementType
   const statementNote =
-    quarterly.data?.statement_type === "s"
-      ? "Standalone figures in Rs. Crore"
-      : "Consolidated figures in Rs. Crore"
+    (shown === "s" ? "Standalone figures in Rs. Crore" : "Consolidated figures in Rs. Crore") +
+    (fellBack
+      ? shown === "s"
+        ? " - this company does not file consolidated statements"
+        : " - showing consolidated, no standalone statements filed"
+      : "")
 
   return (
     <div className="container space-y-5 py-8">
@@ -328,14 +340,7 @@ export function CompanyPage() {
       <Section
         title="Quarterly Results"
         action={
-          <Toggle
-            options={[
-              { value: "c", label: "Consolidated" },
-              { value: "s", label: "Standalone" },
-            ]}
-            value={statementType}
-            onChange={setStatementType}
-          />
+          <StatementSwitch symbol={upper} consolidated={consolidated} />
         }
       >
         <StatementTable

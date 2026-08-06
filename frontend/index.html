@@ -10,17 +10,18 @@
     />
     <script>
       // Apply the stored theme before first paint to avoid a flash of the
-      // wrong theme. Mirrors the logic in providers/theme-provider.tsx.
+      // wrong theme. Mirrors providers/theme-provider.tsx: a stored choice
+      // wins, otherwise fall back to the operating system preference once.
       (function () {
         try {
-          var stored = localStorage.getItem("stocklens-theme") || "system"
+          var stored = localStorage.getItem("stocklens-theme")
           var dark =
             stored === "dark" ||
-            (stored === "system" &&
+            (stored !== "light" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches)
           document.documentElement.classList.add(dark ? "dark" : "light")
         } catch (e) {
-          /* localStorage unavailable; fall through to light */
+          document.documentElement.classList.add("light")
         }
       })()
     </script>

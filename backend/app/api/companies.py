@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Engine, func, select, text
 
 from app.api.presentation import render, template_for
@@ -26,8 +26,9 @@ from app.db.layer2 import (
     statement_line,
     statement_period,
 )
+from app.security.ratelimit import READ, limit
 
-router = APIRouter(prefix="/api", tags=["companies"])
+router = APIRouter(prefix="/api", tags=["companies"], dependencies=[Depends(limit(READ))])
 
 PERIOD_LIMIT = 16
 

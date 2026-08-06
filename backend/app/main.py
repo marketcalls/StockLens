@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api import auth, companies, meta, screener, workspace
 from app.auth.models import create_auth
@@ -16,7 +17,13 @@ from app.config import get_settings
 from app.db.engine import get_engine, get_raw_engine
 from app.db.layer2 import create_layer2
 from app.db.models import create_all
+from app.ingest.materialise import create_snapshot
 from app.logging_setup import configure_logging
+from app.security.middleware import (
+    BodySizeLimitMiddleware,
+    RateLimitIdentityMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 logger = logging.getLogger("stocklens")
 
@@ -28,6 +35,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     create_all(get_engine(), get_raw_engine())
     create_layer2(get_engine())
     create_auth(get_engine())
+    # Without this a fresh install answers the screener with a 500 rather
+    # than an empty result, because nothing has run materialisation yet.
+    create_snapshot(get_engine())
     logger.info("StockLens starting in %s mode", settings.environment)
     if not settings.has_finedge_key:
         logger.warning("FINEDGE_API_KEY is not configured; ingestion will fail")
@@ -51,13 +61,23 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    # Middleware runs bottom-up, so the last added is the outermost. Host and
+    # body checks go outermost so a bad request is rejected before anything
+    # touches it.
+    app.add_middleware(SecurityHeadersMiddleware, settings=settings)
+    app.add_middleware(RateLimitIdentityMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        # Only the methods and headers this API actually uses.
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Accept"],
+        max_age=600,
     )
+    app.add_middleware(BodySizeLimitMiddleware)
+    if settings.allowed_host_list:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_host_list)
     app.include_router(meta.router)
     app.include_router(companies.router)
     app.include_router(screener.router)

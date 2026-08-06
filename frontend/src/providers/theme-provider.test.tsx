@@ -5,7 +5,7 @@ import { ThemeProvider, useTheme } from "./theme-provider"
 
 const STORAGE_KEY = "stocklens-theme"
 
-/** Replace jsdom's matchMedia with one we control, and expose its listeners. */
+/** Replace jsdom's matchMedia with one we control. */
 function mockMatchMedia(matches: boolean) {
   const listeners = new Set<() => void>()
   const query = {
@@ -22,7 +22,6 @@ function mockMatchMedia(matches: boolean) {
     value: () => query,
   })
   return {
-    query,
     emit(next: boolean) {
       query.matches = next
       listeners.forEach((fn) => fn())
@@ -32,17 +31,25 @@ function mockMatchMedia(matches: boolean) {
 }
 
 function Probe() {
-  const { theme, resolvedTheme, setTheme } = useTheme()
+  const { theme, setTheme, toggleTheme } = useTheme()
   return (
     <div>
       <span data-testid="theme">{theme}</span>
-      <span data-testid="resolved">{resolvedTheme}</span>
-      <button onClick={() => setTheme("dark")}>dark</button>
-      <button onClick={() => setTheme("light")}>light</button>
-      <button onClick={() => setTheme("system")}>system</button>
+      <button onClick={toggleTheme}>toggle</button>
+      <button onClick={() => setTheme("dark")}>set-dark</button>
+      <button onClick={() => setTheme("light")}>set-light</button>
     </div>
   )
 }
+
+const view = () =>
+  render(
+    <ThemeProvider>
+      <Probe />
+    </ThemeProvider>,
+  )
+
+const press = (name: string) => act(() => screen.getByRole("button", { name }).click())
 
 beforeEach(() => {
   localStorage.clear()
@@ -51,96 +58,78 @@ beforeEach(() => {
 })
 
 describe("ThemeProvider", () => {
-  it("defaults to system and resolves via the OS preference", () => {
-    mockMatchMedia(true)
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    expect(screen.getByTestId("theme")).toHaveTextContent("system")
-    expect(screen.getByTestId("resolved")).toHaveTextContent("dark")
-    expect(document.documentElement).toHaveClass("dark")
+  it("offers exactly two themes", () => {
+    view()
+    expect(screen.getByTestId("theme")).toHaveTextContent("light")
+    press("toggle")
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark")
+    press("toggle")
+    expect(screen.getByTestId("theme")).toHaveTextContent("light")
   })
 
   it("puts the class on <html> so shadcn's dark variant applies", () => {
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
+    view()
     expect(document.documentElement).toHaveClass("light")
-
-    act(() => screen.getByRole("button", { name: "dark" }).click())
+    press("toggle")
     expect(document.documentElement).toHaveClass("dark")
     expect(document.documentElement).not.toHaveClass("light")
   })
 
-  it("sets colorScheme so native controls match the theme", () => {
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    act(() => screen.getByRole("button", { name: "dark" }).click())
+  it("sets colorScheme so native controls match", () => {
+    view()
+    press("set-dark")
     expect(document.documentElement.style.colorScheme).toBe("dark")
   })
 
   it("persists the choice", () => {
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    act(() => screen.getByRole("button", { name: "dark" }).click())
+    view()
+    press("set-dark")
     expect(localStorage.getItem(STORAGE_KEY)).toBe("dark")
   })
 
   it("restores a persisted choice on mount", () => {
     localStorage.setItem(STORAGE_KEY, "dark")
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
+    view()
     expect(screen.getByTestId("theme")).toHaveTextContent("dark")
     expect(document.documentElement).toHaveClass("dark")
   })
 
-  it("ignores a corrupt stored value", () => {
-    localStorage.setItem(STORAGE_KEY, "chartreuse")
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    expect(screen.getByTestId("theme")).toHaveTextContent("system")
+  it("uses the operating system preference on a first visit only", () => {
+    mockMatchMedia(true)
+    view()
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark")
   })
 
-  it("follows the OS while set to system", () => {
-    const media = mockMatchMedia(false)
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    expect(screen.getByTestId("resolved")).toHaveTextContent("light")
-
-    act(() => media.emit(true))
-    expect(document.documentElement).toHaveClass("dark")
+  it("a stored choice beats the operating system preference", () => {
+    mockMatchMedia(true)
+    localStorage.setItem(STORAGE_KEY, "light")
+    view()
+    expect(screen.getByTestId("theme")).toHaveTextContent("light")
   })
 
-  it("stops following the OS once an explicit theme is chosen", () => {
+  it("never follows the OS after the first render", () => {
+    /* A machine that switches to dark at sunset must not override a deliberate
+       choice of light. There is no "system" mode, so nothing is listening. */
     const media = mockMatchMedia(false)
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    act(() => screen.getByRole("button", { name: "light" }).click())
+    view()
+    press("set-light")
     expect(media.listenerCount()).toBe(0)
 
     act(() => media.emit(true))
+    expect(document.documentElement).toHaveClass("light")
+  })
+
+  it("ignores a corrupt stored value", () => {
+    localStorage.setItem(STORAGE_KEY, "chartreuse")
+    view()
+    expect(screen.getByTestId("theme")).toHaveTextContent("light")
+  })
+
+  it("ignores a stored value left over from the old three-state switcher", () => {
+    /* "system" was a valid choice before; it must not survive as a theme name. */
+    localStorage.setItem(STORAGE_KEY, "system")
+    view()
+    expect(screen.getByTestId("theme")).toHaveTextContent("light")
     expect(document.documentElement).toHaveClass("light")
   })
 
@@ -148,12 +137,8 @@ describe("ThemeProvider", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceededError")
     })
-    render(
-      <ThemeProvider>
-        <Probe />
-      </ThemeProvider>,
-    )
-    act(() => screen.getByRole("button", { name: "dark" }).click())
+    view()
+    press("set-dark")
     expect(document.documentElement).toHaveClass("dark")
     setItem.mockRestore()
   })

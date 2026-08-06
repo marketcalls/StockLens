@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     # environments rather than against one string.
     cookie_secure: bool | None = None
 
+    # --- self-hosting ---------------------------------------------------------
+    rate_limit_enabled: bool = True
+    # Trust X-Forwarded-For only when something trustworthy actually sets it.
+    # Left on by default, anyone could send the header and mint a fresh identity
+    # per request, defeating IP-based limits entirely.
+    trust_proxy_headers: bool = False
+    # Host names the app will answer to. Empty means any, which is fine behind a
+    # reverse proxy that already filters. Set it when exposed directly.
+    allowed_hosts: str = ""
+
     @field_validator("stocklens_db_path", "stocklens_raw_db_path")
     @classmethod
     def _resolve_against_root(cls, value: Path) -> Path:
@@ -60,10 +70,18 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
+    def allowed_host_list(self) -> list[str]:
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def is_plain_http(self) -> bool:
+        return self.environment.lower() in PLAIN_HTTP_ENVIRONMENTS
+
+    @property
     def session_cookie_secure(self) -> bool:
         if self.cookie_secure is not None:
             return self.cookie_secure
-        return self.environment.lower() not in PLAIN_HTTP_ENVIRONMENTS
+        return not self.is_plain_http
 
     @property
     def has_finedge_key(self) -> bool:

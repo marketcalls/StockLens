@@ -19,6 +19,7 @@ from app.auth.service import (
 )
 from app.config import get_settings
 from app.db.engine import get_engine
+from app.security.ratelimit import AUTH, READ, SIGNUP, limit
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -48,7 +49,11 @@ def _set_session(response: Response, user: dict[str, Any]) -> None:
     )
 
 
-@router.post("/signup", status_code=201)
+@router.post(
+    "/signup",
+    status_code=201,
+    dependencies=[Depends(limit(AUTH)), Depends(limit(SIGNUP))],
+)
 def signup(request: SignupRequest, response: Response) -> dict[str, Any]:
     """Create an account. Always at the USER role - see auth/service.py."""
     try:
@@ -65,7 +70,7 @@ def signup(request: SignupRequest, response: Response) -> dict[str, Any]:
     return {"user": public_user(user), "limits": _limits(Role(user["role"]))}
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(limit(AUTH))])
 def login(request: LoginRequest, response: Response) -> dict[str, Any]:
     user = authenticate(get_engine(), request.email, request.password)
     if user is None:
@@ -83,7 +88,7 @@ def logout(response: Response) -> dict[str, str]:
     return {"status": "signed out"}
 
 
-@router.get("/me")
+@router.get("/me", dependencies=[Depends(limit(READ))])
 def me(user: dict[str, Any] | None = Depends(current_user)) -> dict[str, Any]:
     """Who am I, and what may I do. Safe to call anonymously."""
     role = Role(user["role"]) if user else Role.PUBLIC

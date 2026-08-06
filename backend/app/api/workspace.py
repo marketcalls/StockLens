@@ -19,8 +19,9 @@ from app.auth.service import utcnow
 from app.db.engine import get_engine
 from app.screener.execute import run_screen
 from app.screener.parser import QueryError, parse
+from app.security.ratelimit import EXPORT, WRITE, limit
 
-router = APIRouter(prefix="/api", tags=["workspace"])
+router = APIRouter(prefix="/api", tags=["workspace"], dependencies=[Depends(limit(WRITE))])
 
 
 class ScreenPayload(BaseModel):
@@ -297,7 +298,7 @@ def delete_watchlist(watchlist_id: int, user: dict = Depends(require_user)) -> N
 # --- export -------------------------------------------------------------------
 
 
-@router.get("/export/screen")
+@router.get("/export/screen", dependencies=[Depends(limit(EXPORT))])
 def export_screen(
     query: str = Query(min_length=1, max_length=4000),
     user: dict = Depends(require_user),

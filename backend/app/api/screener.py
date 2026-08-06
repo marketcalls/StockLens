@@ -14,6 +14,7 @@ from app.screener.catalog import COLUMNS, screenable
 from app.screener.execute import run_screen
 from app.screener.parser import QueryError
 from app.screener.presets import PRESETS, PRESETS_BY_SLUG
+from app.security.ratelimit import READ, SCREENER, limit
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -27,7 +28,7 @@ class ScreenRequest(BaseModel):
     page_size: int = 50
 
 
-@router.get("/columns")
+@router.get("/columns", dependencies=[Depends(limit(READ))])
 def columns() -> dict[str, Any]:
     """The column catalog, for autocomplete and the query builder."""
     groups: dict[str, list[dict[str, Any]]] = {}
@@ -49,7 +50,7 @@ def columns() -> dict[str, Any]:
     }
 
 
-@router.get("/presets")
+@router.get("/presets", dependencies=[Depends(limit(READ))])
 def presets() -> dict[str, Any]:
     return {
         "presets": [
@@ -65,7 +66,7 @@ def presets() -> dict[str, Any]:
     }
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(limit(SCREENER))])
 def run(request: ScreenRequest, role: Role = Depends(current_role)) -> dict[str, Any]:
     """Run a query.
 
@@ -96,7 +97,7 @@ def run(request: ScreenRequest, role: Role = Depends(current_role)) -> dict[str,
     return payload
 
 
-@router.post("/presets/{slug}/run")
+@router.post("/presets/{slug}/run", dependencies=[Depends(limit(SCREENER))])
 def run_preset(slug: str, page: int = 1, role: Role = Depends(current_role)) -> dict[str, Any]:
     preset = PRESETS_BY_SLUG.get(slug)
     if preset is None:

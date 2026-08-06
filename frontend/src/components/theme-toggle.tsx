@@ -1,51 +1,32 @@
-import { Monitor, Moon, Sun } from "lucide-react"
+import { Moon, Sun } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuCheckItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useTheme, type Theme } from "@/providers/theme-provider"
+import { useTheme } from "@/providers/theme-provider"
 
-const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "dark", label: "Dark", Icon: Moon },
-  { value: "system", label: "System", Icon: Monitor },
-]
-
+/**
+ * One button, two themes.
+ *
+ * The icon shows what you will get, not what you have: on a light page it shows
+ * a moon, because pressing it gives you dark. The label says so explicitly for
+ * anyone who cannot see the icon.
+ */
 export function ThemeToggle() {
-  const { theme, resolvedTheme, setTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
+  const next = theme === "dark" ? "light" : "dark"
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Theme: ${theme}. Change theme`}
-          title="Change theme"
-        >
-          {resolvedTheme === "dark" ? (
-            <Moon className="h-[1.15rem] w-[1.15rem]" aria-hidden />
-          ) : (
-            <Sun className="h-[1.15rem] w-[1.15rem]" aria-hidden />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {OPTIONS.map(({ value, label, Icon }) => (
-          <DropdownMenuCheckItem
-            key={value}
-            checked={theme === value}
-            onSelect={() => setTheme(value)}
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-            {label}
-          </DropdownMenuCheckItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
+    >
+      {theme === "dark" ? (
+        <Sun className="h-[1.15rem] w-[1.15rem]" aria-hidden />
+      ) : (
+        <Moon className="h-[1.15rem] w-[1.15rem]" aria-hidden />
+      )}
+    </Button>
   )
 }
