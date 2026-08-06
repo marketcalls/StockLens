@@ -27,7 +27,9 @@ class Row:
     kind: RowKind = "field"
     # Field names to try, in order. First one present wins.
     fields: tuple[str, ...] = ()
-    unit: Literal["crore", "percent", "price", "ratio", "count", "fraction_pct"] = "crore"
+    unit: Literal["crore", "percent", "price", "ratio", "count", "fraction_pct", "solvency"] = (
+        "crore"
+    )
     emphasis: bool = False
     # Fields to reveal when the row is expanded, mirroring the reference's "+".
     children: tuple[tuple[str, str], ...] = ()
@@ -170,9 +172,9 @@ BANK_PL: tuple[Row, ...] = (
     Row("Tax %", kind="derived", unit="percent", formula="tax_rate"),
     Row("Net Profit", fields=("profitLossForThePeriod",), emphasis=True),
     Row("EPS in Rs", fields=("eps",), unit="price"),
-    Row("Gross NPA %", fields=("percentageOfGrossNpa",), unit="percent"),
-    Row("Net NPA %", fields=("percentageOfNpa",), unit="percent"),
-    Row("CET1 Ratio", fields=("cET1Ratio",), unit="percent"),
+    Row("Gross NPA %", fields=("percentageOfGrossNpa",), unit="fraction_pct"),
+    Row("Net NPA %", fields=("percentageOfNpa",), unit="fraction_pct"),
+    Row("CET1 Ratio", fields=("cET1Ratio",), unit="fraction_pct"),
 )
 
 # --- life insurance -----------------------------------------------------------
@@ -206,8 +208,8 @@ LIFE_PL: tuple[Row, ...] = (
         emphasis=True,
     ),
     Row("EPS in Rs", fields=("eps",), unit="price"),
-    Row("Solvency Ratio", fields=("solvencyRatio",), unit="ratio"),
-    Row("Persistency Ratio", fields=("persistencyRatio",), unit="percent"),
+    Row("Solvency Ratio", fields=("solvencyRatio",), unit="solvency"),
+    Row("Persistency Ratio", fields=("persistencyRatio",), unit="fraction_pct"),
 )
 
 # --- general insurance --------------------------------------------------------
@@ -229,9 +231,9 @@ GENERAL_INSURANCE_PL: tuple[Row, ...] = (
     ),
     Row("Net Profit", fields=("profitLossAfterTax",), emphasis=True),
     Row("EPS in Rs", fields=("eps",), unit="price"),
-    Row("Incurred Claim Ratio", fields=("incurredClaimRatio",), unit="percent"),
-    Row("Combined Ratio", fields=("combinedRatio",), unit="percent"),
-    Row("Solvency Ratio", fields=("solvencyRatio",), unit="ratio"),
+    Row("Incurred Claim Ratio", fields=("incurredClaimRatio",), unit="fraction_pct"),
+    Row("Combined Ratio", fields=("combinedRatio",), unit="fraction_pct"),
+    Row("Solvency Ratio", fields=("solvencyRatio",), unit="solvency"),
 )
 
 RATIOS_ROWS: tuple[Row, ...] = (
@@ -408,9 +410,36 @@ def _scale(raw: float | None, unit: str) -> float | None:
     if unit == "crore":
         return round(raw * CRORE, 2)
     if unit == "fraction_pct":
-        # A fraction that must read as a percentage. dividendPayout arrives as
-        # 0.0921 and belongs on the page as 9.21%.
+        # A fraction that must read as a percentage. Every percentage-valued
+        # field on a statement arrives this way: dividendPayout 0.0921 is 9.21%,
+        # Axis Bank's percentageOfGrossNpa 0.0128 is 1.28%, its cET1Ratio 0.147
+        # is 14.7%, and ICICI Lombard's combinedRatio 1.072 is 107.2%.
         return round(raw * 100, 2)
-    # Percent-valued statement fields (NPA ratios, CET1) already arrive as
-    # percentages, unlike the ratio endpoints which send fractions.
+    if unit == "solvency":
+        return _solvency(raw)
+    # `percent` is for rows we compute ourselves - operating margin, tax rate,
+    # net interest margin - which are already percentages by the time they get
+    # here. No statement field belongs in this branch.
     return round(raw, 2)
+
+
+# IRDAI requires every Indian insurer to hold a solvency ratio of at least 1.5,
+# and in practice they run 1.7 to 2.8. Anything far below that floor is not a
+# solvency ratio at all.
+SOLVENCY_FLOOR = 1.5
+
+
+def _solvency(raw: float) -> float:
+    """Solvency arrives in two conventions, and not consistently per company.
+
+    HDFC Life and ICICI Prudential send 1.85 and 2.27 - the "times" convention.
+    LIC and ICICI Lombard send 0.0235 and 0.0267 for the same quantity, and SBI
+    Life sends both across its own series. Rendered as stored, LIC's 2.35 shows
+    as "0.02".
+
+    A regulated insurer cannot be an order of magnitude below the statutory
+    floor and still be writing business, so a value that small is the hundredths
+    form. Every affected figure rescales into 1.9-2.7, which is where the
+    companies using the other convention already sit.
+    """
+    return round(raw * 100 if abs(raw) < SOLVENCY_FLOOR / 3 else raw, 2)

@@ -241,10 +241,14 @@ class TestAllZeroRows:
         assert "EPS in Rs" in labels
 
     def test_a_row_with_one_real_figure_is_kept(self) -> None:
+        # 0.012, not 1.2: FinEdge sends percentage-valued statement fields as
+        # fractions. This fixture used to carry 1.2, a value the feed never
+        # sends, which is how the scaling bug survived - the test agreed with
+        # the code and both disagreed with the data.
         rows = render(
             BANK_PL,
             [{"header": "Mar 2025"}, {"header": "Mar 2026"}],
-            [{"percentageOfGrossNpa": 0}, {"percentageOfGrossNpa": 1.2}],
+            [{"percentageOfGrossNpa": 0}, {"percentageOfGrossNpa": 0.012}],
         )
         npa = next(r for r in rows if r["label"] == "Gross NPA %")
         assert npa["values"] == [0.0, 1.2]
@@ -256,3 +260,115 @@ class TestAllZeroRows:
             [{"profitLossForPeriod": -1.141e10}],
         )
         assert any(r["label"] == "Net Profit" for r in rows)
+
+
+class TestPercentageFieldsAreFractions:
+    """Every percentage-valued statement field arrives as a fraction.
+
+    The code used to assert the opposite in a comment - "NPA ratios, CET1
+    already arrive as percentages" - and rendered Axis Bank's 1.28% gross NPA,
+    0.39% net NPA and 14.7% CET1 all as "0%". The sparklines still moved,
+    because the underlying numbers were fine; only the scaling was wrong, so
+    nothing looked broken enough to notice.
+    """
+
+    def _row(self, template_rows, label):
+        return next(r for r in template_rows if r.label == label)
+
+    def test_a_banks_percentage_rows_are_scaled(self) -> None:
+        from app.api.presentation import BANK_PL
+
+        for label in ("Gross NPA %", "Net NPA %", "CET1 Ratio"):
+            assert self._row(BANK_PL, label).unit == "fraction_pct", label
+
+    def test_an_insurers_percentage_rows_are_scaled(self) -> None:
+        from app.api.presentation import GENERAL_INSURANCE_PL, LIFE_PL
+
+        assert self._row(LIFE_PL, "Persistency Ratio").unit == "fraction_pct"
+        for label in ("Incurred Claim Ratio", "Combined Ratio"):
+            assert self._row(GENERAL_INSURANCE_PL, label).unit == "fraction_pct"
+
+    def test_the_real_axis_bank_figures_render_correctly(self) -> None:
+        from app.api.presentation import _scale
+
+        # Values taken from the stored statement lines for AXISBANK, Mar 2026.
+        assert _scale(0.0123, "fraction_pct") == 1.23  # gross NPA
+        assert _scale(0.0037, "fraction_pct") == 0.37  # net NPA
+        assert _scale(0.1445, "fraction_pct") == 14.45  # CET1
+
+    def test_an_insurer_can_exceed_a_hundred_percent(self) -> None:
+        from app.api.presentation import _scale
+
+        # ICICI Lombard's combined ratio above 100% means an underwriting loss.
+        # It must not be clamped or mistaken for a fraction of something.
+        assert _scale(1.072, "fraction_pct") == 107.2
+
+    def test_computed_percentages_are_left_alone(self) -> None:
+        from app.api.presentation import _scale
+
+        # Operating margin, tax rate and net interest margin are worked out here
+        # and are already percentages. Scaling them again would give 4500%.
+        assert _scale(45.0, "percent") == 45.0
+
+    def test_no_statement_field_uses_the_computed_percent_unit(self) -> None:
+        """The distinction that was got wrong, guarded at the source.
+
+        `percent` means "we computed this". Any row that reads a field from the
+        statement and calls itself `percent` is the original bug returning.
+        """
+        from app.api.presentation import TEMPLATES
+
+        for template in TEMPLATES.values():
+            for row in template:
+                if row.unit == "percent":
+                    assert row.kind == "derived", (
+                        f"{row.label!r} reads {row.fields} from the statement but is marked"
+                        " `percent`; statement percentages arrive as fractions"
+                    )
+
+
+class TestSolvencyRatio:
+    """Two conventions for the same quantity, not consistent per company.
+
+    HDFC Life and ICICI Prudential send 1.85 and 2.27 - the "times" convention.
+    LIC and ICICI Lombard send 0.0235 and 0.0267 for the same thing, and SBI
+    Life sends both across its own series. Rendered as stored, LIC's solvency of
+    2.35 shows as "0.02", which reads as an insurer on the brink.
+    """
+
+    def test_the_times_convention_is_left_alone(self) -> None:
+        from app.api.presentation import _scale
+
+        for value in (1.75, 1.85, 1.94, 1.96, 2.273):
+            assert _scale(value, "solvency") == round(value, 2)
+
+    def test_the_hundredths_convention_is_rescaled(self) -> None:
+        from app.api.presentation import _scale
+
+        # Real stored values, and the figures the insurers actually report.
+        assert _scale(0.0235, "solvency") == 2.35  # LIC
+        assert _scale(0.0211, "solvency") == 2.11  # LIC, earlier period
+        assert _scale(0.0267, "solvency") == 2.67  # ICICI Lombard
+        assert _scale(0.019, "solvency") == 1.9  # SBI Life
+
+    def test_both_conventions_in_one_series_land_together(self) -> None:
+        from app.api.presentation import _scale
+
+        # SBI Life sends 0.019 and 1.96 for adjacent periods. Rendered, they
+        # must sit on the same scale or the row is a cliff.
+        assert abs(_scale(0.019, "solvency") - _scale(1.96, "solvency")) < 0.1
+
+    def test_everything_lands_above_the_regulatory_floor(self) -> None:
+        from app.api.presentation import SOLVENCY_FLOOR, _scale
+
+        # IRDAI requires 1.5. A rescaling that produced a figure below it would
+        # be evidence the rule is wrong, not that the insurer is insolvent.
+        stored = [1.75, 1.85, 1.94, 1.918, 2.273, 0.0211, 0.0235, 0.0267, 0.019, 1.96]
+        assert all(_scale(v, "solvency") >= SOLVENCY_FLOOR for v in stored)
+
+    def test_a_genuinely_distressed_insurer_is_not_inflated(self) -> None:
+        # 0.8 is below the floor but nowhere near the hundredths form, so it is
+        # reported as it stands rather than turned into a healthy 80.
+        from app.api.presentation import _scale
+
+        assert _scale(0.8, "solvency") == 0.8
