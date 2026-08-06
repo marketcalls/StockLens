@@ -421,6 +421,18 @@ def materialise(engine: Engine) -> dict[str, int]:
             if row.symbol in companies:
                 companies[row.symbol]["schema_kind"] = row.schema_kind
 
+    # Persist it back onto the company row too. The company page reads the
+    # family from there to pick a statement layout, and balance sheet and cash
+    # flow periods are stored as "unknown" because only the P&L carries markers.
+    with engine.begin() as conn:
+        for symbol, row in companies.items():
+            if row.get("schema_kind"):
+                conn.execute(
+                    company.update()
+                    .where(company.c.symbol == symbol)
+                    .values(schema_kind=row["schema_kind"])
+                )
+
     rows: list[dict[str, Any]] = []
     populated = 0
     for symbol, company_row in companies.items():

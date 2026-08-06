@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import meta
+from app.api import companies, meta
 from app.config import get_settings
 from app.db.engine import get_engine, get_raw_engine
 from app.db.models import create_all
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(meta.router)
+    app.include_router(companies.router)
 
     @app.get("/", tags=["meta"])
     def root() -> dict[str, str]:
