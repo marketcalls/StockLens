@@ -151,12 +151,19 @@ class TestNormaliseRouting:
         payload = {
             "financials": [
                 {
-                    "header": "Mar 2026", "year": 2026, "period_end": "20260331",
-                    "income": 1000.0, "revenueFromOperations": 900.0,
-                    "costofGoodsSold": 400.0, "employeeBenefitExpense": 100.0,
-                    "financeCosts": 10.0, "depreciationAndAmortisation": 20.0,
-                    "changesInInventories": 1.0, "costOfMaterialsConsumed": 2.0,
-                    "purchasesOfStockInTrade": 3.0, "eps": 16.19,
+                    "header": "Mar 2026",
+                    "year": 2026,
+                    "period_end": "20260331",
+                    "income": 1000.0,
+                    "revenueFromOperations": 900.0,
+                    "costofGoodsSold": 400.0,
+                    "employeeBenefitExpense": 100.0,
+                    "financeCosts": 10.0,
+                    "depreciationAndAmortisation": 20.0,
+                    "changesInInventories": 1.0,
+                    "costOfMaterialsConsumed": 2.0,
+                    "purchasesOfStockInTrade": 3.0,
+                    "eps": 16.19,
                 }
             ]
         }
@@ -169,7 +176,8 @@ class TestNormaliseRouting:
     def test_basic_financials(self, db: Engine) -> None:
         call = Call(
             "/api/v1/basic-financials/ITC",
-            {"statement_type": "c", "statement_code": "pl"}, "ITC",
+            {"statement_type": "c", "statement_code": "pl"},
+            "ITC",
         )
         payload = {"ratios": [{"header": "TTM", "year": 2026, "ebitda": 100.0, "ebit": 90.0}]}
         assert _normalise_call(db, "ITC", call, payload) == 2
@@ -189,7 +197,8 @@ class TestNormaliseRouting:
     def test_metrics(self, db: Engine) -> None:
         call = Call(
             "/api/v1/financial-metrics/ITC",
-            {"statement_type": "c", "ratio_type": "gr"}, "ITC",
+            {"statement_type": "c", "ratio_type": "gr"},
+            "ITC",
         )
         payload = {"financial_metrics": {"revenueGrowth3years": 0.0688}, "symbol": "ITC"}
         _normalise_call(db, "ITC", call, payload)
@@ -201,9 +210,7 @@ class TestNormaliseRouting:
         """pb=0 means the ratio could not be computed, not that book value is infinite."""
         call = Call("/api/v1/annual-price-ratios/ITC", {"statement_type": "c"}, "ITC")
         payload = {
-            "price_ratios": [
-                {"header": "Dec 2024", "year": 2024, "pe": 35.1, "pb": 0, "ps": 2.42}
-            ]
+            "price_ratios": [{"header": "Dec 2024", "year": 2024, "pe": 35.1, "pb": 0, "ps": 2.42}]
         }
         _normalise_call(db, "ITC", call, payload)
         with db.connect() as conn:
@@ -214,9 +221,7 @@ class TestNormaliseRouting:
     def test_dividends(self, db: Engine) -> None:
         call = Call("/api/v1/dividend/ITC", {}, "ITC")
         payload = {
-            "dividend": [
-                {"date": "27-May-2026", "amount": 8, "dividend_type": "final dividend"}
-            ]
+            "dividend": [{"date": "27-May-2026", "amount": 8, "dividend_type": "final dividend"}]
         }
         _normalise_call(db, "ITC", call, payload)
         with db.connect() as conn:
@@ -241,7 +246,8 @@ class TestNormaliseRouting:
     def test_empty_payload_writes_nothing(self, db: Engine) -> None:
         call = Call(
             "/api/v1/financials/ITC",
-            {"statement_type": "c", "statement_code": "pl", "period": "annual"}, "ITC",
+            {"statement_type": "c", "statement_code": "pl", "period": "annual"},
+            "ITC",
         )
         assert _normalise_call(db, "ITC", call, {}) == 0
 

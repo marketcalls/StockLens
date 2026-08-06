@@ -27,6 +27,7 @@ from app.finedge.client import (
 from app.finedge.endpoints import Call, symbol_endpoint_matrix, universe_endpoints
 from app.ingest.backfill import backfill_symbols, dry_run, prioritised_symbols
 from app.ingest.jobs import run_price_refresh, run_universe_sync
+from app.ingest.materialise import materialise
 from app.ingest.store import finish_run, record_task, start_run, store_raw
 from app.logging_setup import configure_logging
 
@@ -132,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("universe", help="Sync symbol master, indices and constituents")
     sub.add_parser("prices", help="Refresh quotes for the whole universe in one call")
     sub.add_parser("raw-universe", help="Archive the universe-wide endpoints as raw only")
+    sub.add_parser("materialise", help="Rebuild the screener snapshot from Layer 2")
 
     back = sub.add_parser("backfill", help="Fetch and normalise many symbols, prioritised")
     back.add_argument("--limit", type=int, help="Only the top N symbols by priority")
@@ -155,6 +157,13 @@ def main(argv: list[str] | None = None) -> int:
         for call in calls:
             print(f"{call.endpoint} {call.params or ''}".strip())
         print(f"\n{len(calls)} calls planned for {args.symbol.upper()}")
+        return 0
+
+    if args.command == "materialise":
+        from app.db.engine import get_engine as _engine
+
+        result = materialise(_engine())
+        print("\n".join(f"{k}: {v}" for k, v in result.items()))
         return 0
 
     if args.command == "backfill":
