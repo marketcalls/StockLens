@@ -164,3 +164,18 @@ Honest gaps, all deliberate rather than overlooked:
 - **Redistribution rights are unconfirmed.** Serving FinEdge data to anonymous
   visitors is redistribution, and their licence terms have not been checked.
   See [open question Q3](prd/09-open-questions.md).
+
+## Re-applying the data rules
+
+Normalisation decides what counts as a measurement and what is an absent figure,
+but it only runs when a row is fetched. A rule added in a later version never
+reaches data downloaded before it, and a long backfill keeps writing with the
+code it started with — so a fix that lands mid-run misses the rest of that run.
+
+**Re-apply the data rules** in the platform console (or
+`POST /api/superadmin/repair`) applies the current rules to everything already
+stored. It makes no FinEdge calls, takes seconds, and reports what it changed.
+Running it twice reports nothing the second time.
+
+Worth running after upgrading, and after any download that was in flight when you
+upgraded.
