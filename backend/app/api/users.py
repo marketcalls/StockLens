@@ -1,4 +1,4 @@
-"""Account administration. Admin and above.
+"""Account administration. Super Admin only.
 
 Thin wrappers over app/services/users, which holds the rules that stop an
 administrator locking everyone out.
@@ -11,10 +11,10 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.auth.deps import require_admin
+from app.auth.deps import require_super_admin
 from app.services import users
 
-router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(require_super_admin)])
 
 
 class RoleChange(BaseModel):
@@ -55,20 +55,20 @@ def user_detail(user_id: int) -> dict[str, Any]:
 
 @router.patch("/{user_id}/role")
 def change_role(
-    user_id: int, request: RoleChange, actor: dict = Depends(require_admin)
+    user_id: int, request: RoleChange, actor: dict = Depends(require_super_admin)
 ) -> dict[str, Any]:
     return users.change_role(actor, user_id, request.role)
 
 
 @router.patch("/{user_id}/active")
 def set_active(
-    user_id: int, request: ActiveChange, actor: dict = Depends(require_admin)
+    user_id: int, request: ActiveChange, actor: dict = Depends(require_super_admin)
 ) -> dict[str, Any]:
     return users.set_active(actor, user_id, request.active)
 
 
 @router.post("")
-def invite(request: Invite, actor: dict = Depends(require_admin)) -> dict[str, Any]:
+def invite(request: Invite, actor: dict = Depends(require_super_admin)) -> dict[str, Any]:
     """Create an account and return a one-time password to hand over.
 
     A self-hosted install has no mail server, so the password is shown once here

@@ -21,6 +21,7 @@ const ANONYMOUS_LIMITS: Limits = {
   can_export: false,
   can_admin: false,
   can_manage_platform: false,
+  can_see_admin_area: false,
 }
 
 type AuthState = {

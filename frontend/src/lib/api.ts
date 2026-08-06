@@ -275,6 +275,8 @@ export type Limits = {
   can_export: boolean
   can_admin: boolean
   can_manage_platform: boolean
+  /** Every administrative surface is Super Admin only. */
+  can_see_admin_area: boolean
 }
 
 export type Session = { user: AuthUser | null; role: string; limits: Limits }
@@ -332,6 +334,11 @@ export const auth = {
   login: (email: string, password: string) =>
     send<{ user: AuthUser; limits: Limits }>("/api/auth/login", "POST", { email, password }),
   logout: () => send<{ status: string }>("/api/auth/logout", "POST"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    send<{ status: string }>("/api/auth/password", "POST", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 }
 
 export const workspace = {

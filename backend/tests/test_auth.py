@@ -530,3 +530,103 @@ class TestEmailIsOneRule:
         )
         assert response.status_code == 200, response.text
         assert response.json()["user"]["email"] == "owner@stocklens.local"
+
+
+class TestChangingYourPassword:
+    """Self-service, and it must prove you know the current one.
+
+    Without that check a borrowed session becomes a permanent one: someone at an
+    unlocked laptop can act as you until the cookie expires, but should not be
+    able to lock you out of your own account.
+    """
+
+    def _signed_in(self, client):
+        client.post(
+            "/api/auth/signup",
+            json={"email": "owner@example.com", "password": "the-first-password"},
+        )
+        return client
+
+    def test_a_correct_current_password_changes_it(self, client) -> None:
+        self._signed_in(client)
+        response = client.post(
+            "/api/auth/password",
+            json={"current_password": "the-first-password", "new_password": "the-second-password"},
+        )
+        assert response.status_code == 200, response.text
+
+        client.post("/api/auth/logout")
+        assert (
+            client.post(
+                "/api/auth/login",
+                json={"email": "owner@example.com", "password": "the-second-password"},
+            ).status_code
+            == 200
+        )
+
+    def test_the_old_password_stops_working(self, client) -> None:
+        self._signed_in(client)
+        client.post(
+            "/api/auth/password",
+            json={"current_password": "the-first-password", "new_password": "the-second-password"},
+        )
+        client.post("/api/auth/logout")
+        assert (
+            client.post(
+                "/api/auth/login",
+                json={"email": "owner@example.com", "password": "the-first-password"},
+            ).status_code
+            == 401
+        )
+
+    def test_a_wrong_current_password_is_refused(self, client) -> None:
+        self._signed_in(client)
+        response = client.post(
+            "/api/auth/password",
+            json={"current_password": "not-the-password", "new_password": "the-second-password"},
+        )
+        assert response.status_code == 400
+        assert "current password" in response.json()["detail"].lower()
+
+    def test_a_short_new_password_is_refused(self, client) -> None:
+        self._signed_in(client)
+        response = client.post(
+            "/api/auth/password",
+            json={"current_password": "the-first-password", "new_password": "short"},
+        )
+        assert response.status_code == 400
+        assert "at least" in response.json()["detail"]
+
+    def test_reusing_the_same_password_is_refused(self, client) -> None:
+        # Silently accepting it would report success while changing nothing.
+        self._signed_in(client)
+        response = client.post(
+            "/api/auth/password",
+            json={
+                "current_password": "the-first-password",
+                "new_password": "the-first-password",
+            },
+        )
+        assert response.status_code == 400
+        assert "already" in response.json()["detail"]
+
+    def test_signing_in_is_required(self, client) -> None:
+        response = client.post(
+            "/api/auth/password",
+            json={"current_password": "a", "new_password": "a-long-enough-password"},
+        )
+        assert response.status_code == 401
+
+    def test_the_change_is_recorded(self, client) -> None:
+        self._signed_in(client)
+        client.post(
+            "/api/auth/password",
+            json={"current_password": "the-first-password", "new_password": "the-second-password"},
+        )
+        from sqlalchemy import text
+
+        from app.db.engine import get_engine
+
+        with get_engine().connect() as conn:
+            actions = [r[0] for r in conn.execute(text("SELECT action FROM audit_log")).all()]
+        assert "user.password" in actions

@@ -46,7 +46,7 @@ export function whyLocked(
 }
 
 export function PeoplePage() {
-  const { user: me, limits, isLoading } = useAuth()
+  const { user: me, limits } = useAuth()
   const client = useQueryClient()
   const [term, setTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("")
@@ -56,7 +56,7 @@ export function PeoplePage() {
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("user")
 
-  const allowed = limits.can_admin
+  const allowed = limits.can_see_admin_area
 
   const listing = useQuery({
     queryKey: ["users", term, roleFilter],
@@ -109,32 +109,14 @@ export function PeoplePage() {
     onError: complain("Could not create that account."),
   })
 
-  if (isLoading) {
-    return <p className="container py-16 text-sm text-muted-foreground">Checking your access...</p>
-  }
-  if (!allowed) {
-    return (
-      <div className="container py-20">
-        <h1 className="font-display text-title font-semibold tracking-tight">People</h1>
-        <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-          Managing accounts requires administrator access.
-        </p>
-      </div>
-    )
-  }
-
   const superAdmins = listing.data?.active_super_admins ?? 0
   const actor = { id: me?.id ?? null, role: me?.role ?? "user" }
 
   return (
-    <div className="container min-w-0 space-y-6 py-6 md:py-10">
-      <header>
-        <p className="eyebrow mb-2">Administration</p>
-        <h1 className="font-display text-title font-semibold tracking-tight">People</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Accounts are suspended rather than deleted, because the audit trail refers to them.
-        </p>
-      </header>
+    <div className="min-w-0 space-y-6">
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        Accounts are suspended rather than deleted, because the audit trail refers to them.
+      </p>
 
       {message ? (
         <div

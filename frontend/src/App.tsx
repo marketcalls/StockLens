@@ -4,7 +4,9 @@ import { Menu, X } from "lucide-react"
 
 import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { ProfileMenu } from "@/components/profile-menu"
 import { AdminPage } from "@/features/admin/admin-page"
+import { AdminShell } from "@/features/admin/admin-shell"
 import { DiagnosticsPage } from "@/features/admin/diagnostics-page"
 import { PeoplePage } from "@/features/admin/people-page"
 import { AuthPage } from "@/features/auth/auth-page"
@@ -15,28 +17,15 @@ import { StatusPanel } from "@/features/meta/status-panel"
 import { ScreenerPage } from "@/features/screener/screener-page"
 import { HomePage } from "@/features/search/home-page"
 import { SearchBox } from "@/features/search/search-box"
+import { SettingsPage } from "@/features/settings/settings-page"
 import { WorkspacePage } from "@/features/workspace/workspace-page"
-import { useAuth } from "@/providers/auth-provider"
 import { cn } from "@/lib/utils"
 
 const NAV = [
   { to: "/screens", label: "Screens" },
   { to: "/indices", label: "Indices" },
   { to: "/workspace", label: "Workspace" },
-  { to: "/status", label: "Status" },
 ]
-
-/** Admin links only appear for the people who can actually use them. */
-function useNavItems() {
-  const { limits } = useAuth()
-  const items = [...NAV]
-  if (limits.can_admin) {
-    items.push({ to: "/admin/people", label: "People" })
-    items.push({ to: "/admin/diagnostics", label: "Diagnostics" })
-  }
-  if (limits.can_manage_platform) items.push({ to: "/admin", label: "Console" })
-  return items
-}
 
 function NavItem({
   to,
@@ -65,60 +54,10 @@ function NavItem({
   )
 }
 
-function AccountNav({ onNavigate }: { onNavigate?: () => void }) {
-  const { signedIn, user, logout, isLoading } = useAuth()
-  if (isLoading) return null
-
-  if (!signedIn) {
-    return (
-      <>
-        <Link
-          to="/login"
-          onClick={onNavigate}
-          className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Sign in
-        </Link>
-        <Link
-          to="/signup"
-          onClick={onNavigate}
-          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          Get free account
-        </Link>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <Link
-        to="/workspace"
-        onClick={onNavigate}
-        title={user?.email ?? undefined}
-        className="max-w-32 truncate rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {user?.display_name || "Workspace"}
-      </Link>
-      <button
-        type="button"
-        onClick={() => {
-          logout()
-          onNavigate?.()
-        }}
-        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        Sign out
-      </button>
-    </>
-  )
-}
-
 function Header() {
   const location = useLocation()
   const onHome = location.pathname === "/"
   const [open, setOpen] = useState(false)
-  const navItems = useNavItems()
 
   // A route change should always close the drawer, however it was triggered.
   useEffect(() => setOpen(false), [location.pathname])
@@ -141,12 +80,12 @@ function Header() {
         )}
 
         <nav className="hidden shrink-0 items-center gap-1 md:flex">
-          {navItems.map((item) => (
+          {NAV.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
           <span className="mx-1 h-5 w-px bg-border" />
-          <AccountNav />
           <ThemeToggle />
+          <ProfileMenu />
         </nav>
 
         <div className="ml-auto flex items-center gap-1 md:hidden">
@@ -172,30 +111,17 @@ function Header() {
           <div className="container space-y-3 py-4">
             {!onHome ? <SearchBox compact /> : null}
             <nav className="flex flex-col gap-1">
-              {navItems.map((item) => (
+              {NAV.map((item) => (
                 <NavItem key={item.to} {...item} onNavigate={() => setOpen(false)} />
               ))}
             </nav>
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-              <AccountNav onNavigate={() => setOpen(false)} />
+              <ProfileMenu />
             </div>
           </div>
         </div>
       ) : null}
     </header>
-  )
-}
-
-function StatusPage() {
-  return (
-    <div className="container py-8 md:py-12">
-      <p className="eyebrow">Operations</p>
-      <h1 className="mt-2 font-display text-title font-semibold">System status</h1>
-      <p className="mb-8 mt-2 max-w-prose text-sm text-muted-foreground">
-        Ingestion health and what is currently loaded.
-      </p>
-      <StatusPanel />
-    </div>
   )
 }
 
@@ -241,10 +167,13 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/signup" element={<AuthPage mode="signup" />} />
-          <Route path="/status" element={<StatusPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/admin/people" element={<PeoplePage />} />
-          <Route path="/admin/diagnostics" element={<DiagnosticsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<AdminPage />} />
+            <Route path="people" element={<PeoplePage />} />
+            <Route path="diagnostics" element={<DiagnosticsPage />} />
+            <Route path="status" element={<StatusPanel />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

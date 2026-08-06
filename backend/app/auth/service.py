@@ -137,6 +137,36 @@ def authenticate(engine: Engine, email: str, password: str) -> dict[str, Any] | 
     return {**user, **updates}
 
 
+def change_password(
+    engine: Engine, *, user_id: int, current_password: str, new_password: str
+) -> None:
+    """Change your own password, proving you know the current one.
+
+    Requiring the current password is what stops a borrowed session becoming a
+    permanent one: someone at an unlocked laptop can act as you until the cookie
+    expires, but cannot lock you out of your own account.
+    """
+    user = get_user(engine, user_id)
+    if user is None:
+        raise SignupError("No such account")
+    if not verify_password(current_password, user["password_hash"]):
+        raise SignupError("Your current password is not right")
+
+    problem = password_problem(new_password)
+    if problem:
+        raise SignupError(problem)
+    if verify_password(new_password, user["password_hash"]):
+        raise SignupError("That is already your password")
+
+    with engine.begin() as conn:
+        conn.execute(
+            app_user.update()
+            .where(app_user.c.id == user_id)
+            .values(password_hash=hash_password(new_password))
+        )
+    record_audit(engine, actor_id=user_id, action="user.password")
+
+
 def set_role(engine: Engine, *, actor_id: int, user_id: int, role: Role) -> dict[str, Any]:
     user = get_user(engine, user_id)
     if user is None:

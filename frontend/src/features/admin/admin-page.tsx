@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { superadmin, type IngestionRunDetail, ApiError } from "@/lib/api"
@@ -130,12 +129,12 @@ function Action({
 }
 
 export function AdminPage() {
-  const { limits, isLoading: sessionLoading } = useAuth()
+  const { limits } = useAuth()
   const client = useQueryClient()
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null)
   const [backfillLimit, setBackfillLimit] = useState("500")
 
-  const allowed = limits.can_manage_platform
+  const allowed = limits.can_see_admin_area
 
   const status = useQuery({
     queryKey: ["superadmin-status"],
@@ -231,37 +230,14 @@ export function AdminPage() {
     onError: complain("Could not clear that run."),
   })
 
-  if (sessionLoading) {
-    return <p className="container py-16 text-sm text-muted-foreground">Checking your access...</p>
-  }
-
-  if (!allowed) {
-    return (
-      <div className="container py-20">
-        <h1 className="font-display text-title font-semibold tracking-tight">Platform console</h1>
-        <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-          This page is for super administrators. If you run this instance, sign in with the account
-          you created with <code className="font-mono text-data">stocklens-admin create-super-admin</code>.
-        </p>
-        <Link to="/login" className="mt-4 inline-block text-sm text-primary hover:underline">
-          Sign in
-        </Link>
-      </div>
-    )
-  }
-
   const activeRun = status.data?.runs.find((r) => r.is_active)
 
   return (
-    <div className="container min-w-0 space-y-6 py-6 md:py-10">
-      <header>
-        <p className="eyebrow mb-2">Super admin</p>
-        <h1 className="font-display text-title font-semibold tracking-tight">Platform console</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Download data from FinEdge and watch it land. One job runs at a time, because the
-          database takes a single writer and two downloads would double the request rate.
-        </p>
-      </header>
+    <div className="min-w-0 space-y-6">
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        Download data from FinEdge and watch it land. One job runs at a time, because the
+        database takes a single writer and two downloads would double the request rate.
+      </p>
 
       {message ? (
         <div
@@ -383,9 +359,35 @@ export function AdminPage() {
                 const n = Number.parseInt(backfillLimit, 10)
                 if (!Number.isFinite(n) || n <= 0) return "Enter a number"
                 const calls = n * (plan.data?.calls_per_symbol ?? 59)
-                return `${calls.toLocaleString("en-IN")} calls · about ${Math.max(1, Math.round(calls / 5 / 60))} min`
+                const minutes = Math.max(1, Math.round(calls / 5 / 60))
+                const time = minutes >= 90 ? `${(minutes / 60).toFixed(1)} hours` : `${minutes} min`
+                return `${calls.toLocaleString("en-IN")} calls · about ${time}`
               })()}
             </p>
+          </div>
+
+          {/* "Everything" should be a button, not a number you have to know. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="eyebrow">Or take</span>
+            {[250, 500, 1000, 2500].map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => setBackfillLimit(String(count))}
+                className="rounded-md border bg-raised px-2.5 py-1 font-mono text-micro uppercase tracking-wider transition-colors hover:text-primary"
+              >
+                {count.toLocaleString("en-IN")}
+              </button>
+            ))}
+            {plan.data ? (
+              <button
+                type="button"
+                onClick={() => setBackfillLimit(String(plan.data.symbols))}
+                className="rounded-md border border-primary/50 px-2.5 py-1 font-mono text-micro uppercase tracking-wider text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                Every company ({plan.data.symbols.toLocaleString("en-IN")})
+              </button>
+            ) : null}
           </div>
         </div>
       </Panel>

@@ -1,4 +1,4 @@
-"""Logs and diagnostics. Admin and above."""
+"""Logs and diagnostics. Super Admin only."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from app.auth.deps import require_admin
+from app.auth.deps import require_super_admin
 from app.services import diagnostics
 
 router = APIRouter(
-    prefix="/api/diagnostics", tags=["diagnostics"], dependencies=[Depends(require_admin)]
+    prefix="/api/diagnostics", tags=["diagnostics"], dependencies=[Depends(require_super_admin)]
 )
 
 

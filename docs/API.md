@@ -1,6 +1,6 @@
 # HTTP API
 
-60 endpoints under `/api`. Interactive docs are at `/docs` when the server is
+61 endpoints under `/api`. Interactive docs are at `/docs` when the server is
 running; this page covers the parts a schema cannot express — who may call what,
 what the units are, and where the results come from.
 
@@ -15,7 +15,7 @@ runs alongside the app, call the service instead — see [SERVICES.md](SERVICES.
 | --- | --- | --- |
 | Public | — | Screener (25 rows), company pages, indices |
 | User | 10 | Full result sets, saved screens, watchlists, CSV export |
-| Admin | 20 | Everything a user gets, plus data quality |
+| Admin | 20 | Currently the same as a user; every administrative surface is Super Admin |
 | Super Admin | 30 | Ingestion control |
 
 | Route | Notes |
@@ -23,6 +23,7 @@ runs alongside the app, call the service instead — see [SERVICES.md](SERVICES.
 | `POST /api/auth/signup` | `{email, password, display_name}` |
 | `POST /api/auth/login` | `{email, password}` |
 | `POST /api/auth/logout` | Clears the cookie |
+| `POST /api/auth/password` | `{current_password, new_password}` — change your own |
 | `GET /api/auth/me` | Current session, role and limits |
 | `GET /api/auth/limits` | The caller's row cap and rate limits |
 | `GET /api/limits/screener` | Row cap for the screener alone |
@@ -33,6 +34,10 @@ nothing extra; a script must keep the cookie jar (`curl -c/-b`, `httpx.Client()`
 
 `limits` is what the UI uses to explain why a result set stops where it does
 rather than silently truncating.
+
+Changing your own password requires the current one. Without that check a
+borrowed session becomes a permanent one: someone at an unlocked laptop can act
+as you until the cookie expires, but cannot lock you out of the account.
 
 **The email address is a login identifier, not a delivery address.** This is
 self-hosted, so `admin@stocklens.local` and `admin@localhost` are accepted. The
@@ -163,7 +168,7 @@ nothing, screen on something they do report.
 Signed-in only, and scoped to the owner — someone else's screen returns 404, not
 403, since 403 would confirm it exists.
 
-## Accounts — Admin and above
+## Accounts — Super Admin only
 
 | Route | Effect |
 | --- | --- |
@@ -190,7 +195,7 @@ enforced in the service rather than the route, so a script cannot go around them
 mail server, so there is nothing to send an invitation with; the password is
 stored only as a hash and cannot be recovered afterwards.
 
-## Diagnostics — Admin and above
+## Diagnostics — Super Admin only
 
 | Route | Notes |
 | --- | --- |

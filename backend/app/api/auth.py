@@ -17,6 +17,9 @@ from app.auth.service import (
     public_user,
     record_audit,
 )
+from app.auth.service import (
+    change_password as change_password_service,
+)
 from app.config import get_settings
 from app.db.engine import get_engine
 from app.security.ratelimit import AUTH, READ, SIGNUP, limit
@@ -88,6 +91,32 @@ def logout(response: Response) -> dict[str, str]:
     return {"status": "signed out"}
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=1, max_length=1024)
+
+
+@router.post("/password", dependencies=[Depends(limit(AUTH))])
+def change_password(
+    request: PasswordChange, user: dict[str, Any] = Depends(require_user)
+) -> dict[str, str]:
+    """Change your own password.
+
+    Rate limited with the login bucket: this endpoint verifies a password, so
+    left open it is a way to test guesses against a session you already hold.
+    """
+    try:
+        change_password_service(
+            get_engine(),
+            user_id=user["id"],
+            current_password=request.current_password,
+            new_password=request.new_password,
+        )
+    except SignupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "password changed"}
+
+
 @router.get("/me", dependencies=[Depends(limit(READ))])
 def me(user: dict[str, Any] | None = Depends(current_user)) -> dict[str, Any]:
     """Who am I, and what may I do. Safe to call anonymously."""
@@ -110,6 +139,10 @@ def _limits(role: Role) -> dict[str, Any]:
         "can_export": role >= Role.USER,
         "can_admin": role >= Role.ADMIN,
         "can_manage_platform": role >= Role.SUPER_ADMIN,
+        # Every administrative surface - console, people, diagnostics, status -
+        # is Super Admin only. Kept separate from can_admin so the two can
+        # diverge again without hunting through the front end.
+        "can_see_admin_area": role >= Role.SUPER_ADMIN,
     }
 
 

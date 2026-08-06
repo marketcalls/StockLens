@@ -78,9 +78,9 @@ function Entry({ entry }: { entry: LogEntry }) {
 }
 
 export function DiagnosticsPage() {
-  const { limits, isLoading } = useAuth()
+  const { limits } = useAuth()
   const [level, setLevel] = useState("")
-  const allowed = limits.can_admin
+  const allowed = limits.can_see_admin_area
 
   const health = useQuery({
     queryKey: ["diagnostics-health"],
@@ -94,20 +94,6 @@ export function DiagnosticsPage() {
     enabled: allowed,
   })
 
-  if (isLoading) {
-    return <p className="container py-16 text-sm text-muted-foreground">Checking your access...</p>
-  }
-  if (!allowed) {
-    return (
-      <div className="container py-20">
-        <h1 className="font-display text-title font-semibold tracking-tight">Diagnostics</h1>
-        <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-          Diagnostics require administrator access.
-        </p>
-      </div>
-    )
-  }
-
   const summary = health.data
   const errors = summary?.errors_last_24h ?? 0
   const storedBytes = summary
@@ -115,15 +101,11 @@ export function DiagnosticsPage() {
     : 0
 
   return (
-    <div className="container min-w-0 space-y-6 py-6 md:py-10">
-      <header>
-        <p className="eyebrow mb-2">Administration</p>
-        <h1 className="font-display text-title font-semibold tracking-tight">Diagnostics</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Warnings and errors are kept here as well as on standard output, so a failure on a
-          machine nobody is watching still leaves a record. The most recent 2,000 are held.
-        </p>
-      </header>
+    <div className="min-w-0 space-y-6">
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        Warnings and errors are kept here as well as on standard output, so a failure on a
+        machine nobody is watching still leaves a record. The most recent 2,000 are held.
+      </p>
 
       {summary ? (
         <section
