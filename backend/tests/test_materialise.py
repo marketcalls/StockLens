@@ -375,3 +375,61 @@ class TestRebuild:
 
     def test_empty_database(self, db: Engine) -> None:
         assert materialise(db)["companies"] == 0
+
+
+class TestEnterpriseMultiple:
+    """EV/EBITDA needs a denominator that means something."""
+
+    # EBITDA is stored in rupees and scaled to crore on the way in.
+    RUPEES_PER_CRORE = 1e7
+
+    def _company(self, db: Engine, ebitda_crore: float, mcap: float = 187894.0) -> dict:
+        l2.upsert_companies(db, [{"symbol": "X", "name": "X Ltd", "updated_at": NOW}])
+        l2.upsert_quotes(
+            db,
+            [{"symbol": "X", "current_price": 100.0, "market_cap": mcap, "updated_at": NOW}],
+        )
+        l2.upsert(
+            db,
+            basic_financial,
+            [
+                {
+                    "symbol": "X",
+                    "statement_type": "c",
+                    "statement_code": "pl",
+                    "header": "TTM",
+                    "field_name": "ebitda",
+                    "year": 2026,
+                    "value": ebitda_crore * self.RUPEES_PER_CRORE,
+                }
+            ],
+        )
+        materialise(db)
+        return _row(db, "X")
+
+    def test_a_near_zero_ebitda_produces_no_multiple(self, db: Engine) -> None:
+        # VAML reports EBITDA of -0.03 Cr against an enterprise value of
+        # 187,894 Cr. Divided out that is -6,242,332, which sorts to the front
+        # of any screen on EV/EBITDA and carries no information.
+        row = self._company(db, ebitda_crore=-0.0301)
+        assert row["ebitda"] == pytest.approx(-0.0301, abs=1e-6)
+        assert row["ev_ebitda"] is None
+        assert row["enterprise_value"] is not None, "the EV itself is still real"
+
+    def test_a_real_ebitda_still_gets_a_multiple(self, db: Engine) -> None:
+        row = self._company(db, ebitda_crore=20000.0)
+        assert row["ev_ebitda"] == pytest.approx(187894.0 / 20000.0, abs=0.01)
+
+    def test_a_genuine_operating_loss_keeps_its_negative_multiple(self, db: Engine) -> None:
+        # Negative EBITDA is a real measurement when it is large enough to mean
+        # something. Only the near-zero denominator is excluded.
+        row = self._company(db, ebitda_crore=-5000.0)
+        assert row["ev_ebitda"] == pytest.approx(187894.0 / -5000.0, abs=0.01)
+
+    def test_the_threshold_is_on_magnitude_not_sign(self, db: Engine) -> None:
+        from app.ingest.materialise import MIN_EBITDA_FOR_MULTIPLE
+
+        half = MIN_EBITDA_FOR_MULTIPLE / 2
+        assert self._company(db, ebitda_crore=half)["ev_ebitda"] is None
+        assert self._company(db, ebitda_crore=-half)["ev_ebitda"] is None
+        assert self._company(db, ebitda_crore=MIN_EBITDA_FOR_MULTIPLE * 2)["ev_ebitda"] is not None

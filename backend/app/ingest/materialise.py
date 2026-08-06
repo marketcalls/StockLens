@@ -39,6 +39,10 @@ from app.screener.catalog import Column, snapshot_ddl, stored
 
 logger = logging.getLogger("stocklens.materialise")
 
+# Rs. Crore. Below this an EV/EBITDA multiple is division by noise rather than
+# a valuation.
+MIN_EBITDA_FOR_MULTIPLE = 1.0
+
 MEMBERSHIP_DDL = """
 CREATE TABLE IF NOT EXISTS snapshot_index_membership (
   symbol TEXT NOT NULL,
@@ -330,7 +334,12 @@ def _compute(
     if mcap is not None:
         ev = mcap + (debt or 0.0) - (cash or 0.0)
         values["enterprise_value"] = ev
-        if ebitda and ebitda != 0:
+        # A denominator this small is noise, not a measurement. VAML reports
+        # EBITDA of -0.03 Cr against an enterprise value of 187,894 Cr, which
+        # divides out to -6,242,332 - a figure that sorts to the front of any
+        # screen on EV/EBITDA and means nothing. A listed company with under a
+        # crore of operating profit has no meaningful multiple.
+        if ebitda is not None and abs(ebitda) >= MIN_EBITDA_FOR_MULTIPLE:
             values["ev_ebitda"] = ev / ebitda
 
     if pe and pe != 0:
