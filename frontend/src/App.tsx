@@ -1,93 +1,94 @@
-import { Link, Route, Routes, useLocation } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom"
+import { Menu, X } from "lucide-react"
 
+import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthPage } from "@/features/auth/auth-page"
-import { WorkspacePage } from "@/features/workspace/workspace-page"
-import { useAuth } from "@/providers/auth-provider"
 import { CompanyPage } from "@/features/company/company-page"
 import { StatusPanel } from "@/features/meta/status-panel"
 import { ScreenerPage } from "@/features/screener/screener-page"
 import { HomePage } from "@/features/search/home-page"
 import { SearchBox } from "@/features/search/search-box"
+import { WorkspacePage } from "@/features/workspace/workspace-page"
+import { useAuth } from "@/providers/auth-provider"
+import { cn } from "@/lib/utils"
 
-function Header() {
-  const onHome = useLocation().pathname === "/"
+const NAV = [
+  { to: "/screens", label: "Screens" },
+  { to: "/workspace", label: "Workspace" },
+  { to: "/status", label: "Status" },
+]
+
+function NavItem({
+  to,
+  label,
+  onNavigate,
+}: {
+  to: string
+  label: string
+  onNavigate?: () => void
+}) {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="container flex h-16 items-center gap-6">
-        <Link to="/" className="flex shrink-0 items-center gap-2">
-          <span className="text-lg font-semibold tracking-tight">StockLens</span>
-          <svg width="20" height="17" viewBox="0 0 22 18" fill="none" aria-hidden>
-            <rect x="0" y="11" width="5" height="7" rx="1" className="fill-primary/50" />
-            <rect x="8" y="6" width="5" height="12" rx="1" className="fill-primary/75" />
-            <rect x="16" y="0" width="5" height="18" rx="1" className="fill-primary" />
-          </svg>
-        </Link>
-
-        {/* The home page has its own large search, so the header omits it there. */}
-        {!onHome ? (
-          <div className="max-w-md flex-1">
-            <SearchBox />
-          </div>
-        ) : (
-          <div className="flex-1" />
-        )}
-
-        <nav className="flex shrink-0 items-center gap-1">
-          <AccountNav />
-          <Link
-            to="/screens"
-            className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
-          >
-            Screens
-          </Link>
-          <Link
-            to="/status"
-            className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
-          >
-            Status
-          </Link>
-          <ThemeToggle />
-        </nav>
-      </div>
-    </header>
+    <NavLink
+      to={to}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        cn(
+          "rounded-md px-3 py-1.5 text-sm transition-colors",
+          isActive
+            ? "bg-accent font-medium text-accent-foreground"
+            : "text-muted-foreground hover:text-foreground",
+        )
+      }
+    >
+      {label}
+    </NavLink>
   )
 }
 
-function AccountNav() {
+function AccountNav({ onNavigate }: { onNavigate?: () => void }) {
   const { signedIn, user, logout, isLoading } = useAuth()
   if (isLoading) return null
+
   if (!signedIn) {
     return (
       <>
         <Link
           to="/login"
-          className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+          onClick={onNavigate}
+          className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           Sign in
         </Link>
         <Link
           to="/signup"
-          className="rounded-md border border-primary px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-primary hover:text-primary-foreground"
+          onClick={onNavigate}
+          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           Get free account
         </Link>
       </>
     )
   }
+
   return (
     <>
       <Link
         to="/workspace"
-        className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+        onClick={onNavigate}
         title={user?.email ?? undefined}
+        className="max-w-32 truncate rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         {user?.display_name || "Workspace"}
       </Link>
       <button
         type="button"
-        onClick={() => logout()}
-        className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+        onClick={() => {
+          logout()
+          onNavigate?.()
+        }}
+        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         Sign out
       </button>
@@ -95,11 +96,83 @@ function AccountNav() {
   )
 }
 
+function Header() {
+  const location = useLocation()
+  const onHome = location.pathname === "/"
+  const [open, setOpen] = useState(false)
+
+  // A route change should always close the drawer, however it was triggered.
+  useEffect(() => setOpen(false), [location.pathname])
+
+  return (
+    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
+      <div className="container flex h-16 items-center gap-4">
+        <Link to="/" className="shrink-0">
+          <Wordmark />
+        </Link>
+
+        {!onHome ? (
+          <div className="hidden min-w-0 flex-1 md:block">
+            <div className="max-w-sm">
+              <SearchBox compact />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
+
+        <nav className="hidden shrink-0 items-center gap-1 md:flex">
+          {NAV.map((item) => (
+            <NavItem key={item.to} {...item} />
+          ))}
+          <span className="mx-1 h-5 w-px bg-border" />
+          <AccountNav />
+          <ThemeToggle />
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1 md:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            className="rounded-md p-2 text-muted-foreground hover:text-foreground"
+          >
+            {open ? (
+              <X className="h-5 w-5" aria-hidden />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {open ? (
+        <div className="border-t bg-card md:hidden">
+          <div className="container space-y-3 py-4">
+            {!onHome ? <SearchBox compact /> : null}
+            <nav className="flex flex-col gap-1">
+              {NAV.map((item) => (
+                <NavItem key={item.to} {...item} onNavigate={() => setOpen(false)} />
+              ))}
+            </nav>
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <AccountNav onNavigate={() => setOpen(false)} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </header>
+  )
+}
+
 function StatusPage() {
   return (
-    <div className="container py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">System status</h1>
-      <p className="mb-8 mt-1 text-sm text-muted-foreground">
+    <div className="container py-8 md:py-12">
+      <p className="eyebrow">Operations</p>
+      <h1 className="mt-2 font-display text-title font-semibold">System status</h1>
+      <p className="mb-8 mt-2 max-w-prose text-sm text-muted-foreground">
         Ingestion health and what is currently loaded.
       </p>
       <StatusPanel />
@@ -109,9 +182,10 @@ function StatusPage() {
 
 function NotFound() {
   return (
-    <div className="container py-20 text-center">
-      <h1 className="text-xl font-semibold">Page not found</h1>
-      <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+    <div className="container py-24 text-center">
+      <p className="eyebrow">404</p>
+      <h1 className="mt-2 font-display text-title font-semibold">No such page</h1>
+      <Link to="/" className="mt-5 inline-block text-sm text-primary hover:underline">
         Back to search
       </Link>
     </div>
@@ -119,10 +193,23 @@ function NotFound() {
 }
 
 export default function App() {
+  const { pathname } = useLocation()
+
+  // Arriving at a company from a search result should start at the top.
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [pathname])
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-background">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <Header />
-      <main className="flex-1">
+      <main id="main" className="min-w-0 flex-1">
         <Routes>
           <Route path="/" element={<HomePage />} />
           {/* Standalone at the bare path, consolidated on its own URL, so a
@@ -137,10 +224,12 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-      <footer className="border-t">
-        <div className="container py-6 text-xs text-muted-foreground">
-          Market data from FinEdge. Figures in Rs. Crore unless stated otherwise. Not investment
-          advice.
+      <footer className="mt-16 border-t">
+        <div className="container flex flex-wrap items-center justify-between gap-3 py-6">
+          <p className="text-micro text-muted-foreground">
+            Market data from FinEdge. Figures in Rs. Crore unless stated otherwise.
+          </p>
+          <p className="text-micro text-muted-foreground">Not investment advice.</p>
         </div>
       </footer>
     </div>

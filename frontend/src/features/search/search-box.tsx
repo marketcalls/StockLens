@@ -7,7 +7,13 @@ import { api } from "@/lib/api"
 import { cn, formatCrore } from "@/lib/utils"
 
 /** Company autocomplete. Keyboard-first: arrows to move, Enter to open, Escape to close. */
-export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
+export function SearchBox({
+  autoFocus = false,
+  compact = false,
+}: {
+  autoFocus?: boolean
+  compact?: boolean
+}) {
   const [term, setTerm] = useState("")
   const [debounced, setDebounced] = useState("")
   const [active, setActive] = useState(0)
@@ -29,7 +35,6 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
   })
 
   const results = debounced ? (data?.results ?? []) : []
-
   useEffect(() => setActive(0), [debounced])
 
   function choose(symbol: string) {
@@ -59,7 +64,10 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
     <div className="relative w-full">
       <div className="relative">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          className={cn(
+            "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
+            compact ? "h-4 w-4" : "h-[1.15rem] w-[1.15rem] left-4",
+          )}
           aria-hidden
         />
         <input
@@ -74,11 +82,17 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKeyDown}
-          placeholder="Search for a company"
+          placeholder={compact ? "Search companies" : "Search for a company"}
           aria-label="Search for a company"
           aria-autocomplete="list"
           aria-expanded={showList}
-          className="h-12 w-full rounded-lg border bg-card pl-10 pr-10 text-base outline-none ring-offset-background transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            "w-full rounded-lg border bg-card outline-none ring-offset-background transition-all",
+            "focus-visible:border-primary",
+            compact
+              ? "h-9 pl-9 pr-9 text-sm"
+              : "h-14 pl-12 pr-12 text-base shadow-panel focus-visible:shadow-pop md:h-16 md:text-lg",
+          )}
         />
         {term ? (
           <button
@@ -88,9 +102,12 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
               inputRef.current?.focus()
             }}
             aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground",
+              compact ? "right-3" : "right-4",
+            )}
           >
-            <X className="h-4 w-4" aria-hidden />
+            <X className={compact ? "h-4 w-4" : "h-5 w-5"} aria-hidden />
           </button>
         ) : null}
       </div>
@@ -98,11 +115,11 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
       {showList ? (
         <ul
           role="listbox"
-          className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-md border bg-popover p-1 shadow-lg"
+          className="absolute z-50 mt-2 max-h-[22rem] w-full overflow-auto rounded-lg border bg-popover p-1 shadow-pop"
         >
           {results.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-muted-foreground">
-              {isFetching ? "Searching..." : `No company matches "${debounced}"`}
+            <li className="px-3 py-3 text-sm text-muted-foreground">
+              {isFetching ? "Searching…" : `No company matches “${debounced}”`}
             </li>
           ) : (
             results.map((result, i) => (
@@ -113,29 +130,30 @@ export function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
                   onMouseEnter={() => setActive(i)}
                   onClick={() => choose(result.symbol)}
                   className={cn(
-                    "flex w-full items-baseline justify-between gap-3 rounded px-3 py-2 text-left text-sm",
+                    "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left",
                     i === active ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                   )}
                 >
-                  <span className="truncate">
-                    {result.name}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm">{result.name}</span>
                     <span
                       className={cn(
-                        "ml-2 text-xs",
+                        "block font-mono text-micro",
                         i === active ? "text-primary-foreground/70" : "text-muted-foreground",
                       )}
                     >
                       {result.symbol}
+                      {result.sector ? ` · ${result.sector}` : ""}
                     </span>
                   </span>
                   {result.market_cap ? (
                     <span
                       className={cn(
-                        "tabular shrink-0 text-xs",
+                        "tabular shrink-0 font-mono text-micro",
                         i === active ? "text-primary-foreground/70" : "text-muted-foreground",
                       )}
                     >
-                      {formatCrore(result.market_cap, 0)} Cr
+                      {formatCrore(result.market_cap, 0)}
                     </span>
                   ) : null}
                 </button>

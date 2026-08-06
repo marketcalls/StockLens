@@ -4,9 +4,9 @@ import type { ScreenResult } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 function formatCell(value: string | number | null, unit: string): string {
-  if (value === null || value === undefined) return "-"
+  if (value === null || value === undefined) return "—"
   if (typeof value === "string") return value
-  if (Number.isNaN(value)) return "-"
+  if (Number.isNaN(value)) return "—"
   if (unit === "percent") return `${value.toFixed(2)}%`
   if (unit === "ratio" || unit === "price") return value.toFixed(2)
   if (unit === "days") return value.toFixed(0)
@@ -17,7 +17,7 @@ function formatCell(value: string | number | null, unit: string): string {
 export function ResultsGrid({ result }: { result: ScreenResult }) {
   if (result.total === 0) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center">
+      <div className="panel p-10 text-center">
         <p className="text-sm font-medium">No companies match this query</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Try loosening a condition, or check the units - money is in Rs. Crore and
@@ -28,7 +28,7 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">
@@ -45,11 +45,11 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
         <p className="tabular text-xs text-muted-foreground">{result.elapsed_ms} ms</p>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="scroll-slim min-w-0 overflow-x-auto rounded-md border">
         <table className="w-full min-w-max text-sm">
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              <th scope="col" className="px-3 py-2 font-medium text-muted-foreground">
+            <tr className="border-b bg-raised text-left">
+              <th scope="col" className="eyebrow px-3 py-2.5">
                 #
               </th>
               {result.columns.map((column) => (
@@ -57,7 +57,7 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
                   key={column.key}
                   scope="col"
                   className={cn(
-                    "whitespace-nowrap px-3 py-2 font-medium",
+                    "eyebrow whitespace-nowrap px-3 py-2.5",
                     column.key === "name" ? "text-left" : "text-right",
                   )}
                 >
@@ -68,15 +68,18 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
           </thead>
           <tbody>
             {result.rows.map((row, index) => (
-              <tr key={String(row.symbol)} className="border-b border-border/50 last:border-0">
-                <td className="tabular px-3 py-2 text-muted-foreground">
+              <tr
+                key={String(row.symbol)}
+                className="border-b border-grid transition-colors last:border-0 hover:bg-accent/40"
+              >
+                <td className="tabular px-3 py-2 font-mono text-micro text-muted-foreground">
                   {(result.page - 1) * result.page_size + index + 1}
                 </td>
                 {result.columns.map((column) => (
                   <td
                     key={column.key}
                     className={cn(
-                      "tabular whitespace-nowrap px-3 py-2",
+                      "tabular whitespace-nowrap px-3 py-2 font-mono text-data",
                       column.key === "name" ? "text-left" : "text-right",
                       typeof row[column.key] === "number" &&
                         (row[column.key] as number) < 0 &&
@@ -101,7 +104,7 @@ export function ResultsGrid({ result }: { result: ScreenResult }) {
 
             {/* The wall is a real row, not a pop-up. It states the true count. */}
             {result.capped ? (
-              <tr className="border-t bg-muted/40">
+              <tr className="border-t bg-raised">
                 <td
                   colSpan={result.columns.length + 1}
                   className="px-3 py-4 text-center text-sm"

@@ -3,7 +3,15 @@ export default {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
-    container: { center: true, padding: "1.5rem", screens: { "2xl": "1400px" } },
+    container: { center: true, padding: "1rem", screens: { "2xl": "1320px" } },
+    screens: {
+      xs: "420px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -11,6 +19,8 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        raised: "hsl(var(--raised))",
+        grid: "hsl(var(--grid))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -39,10 +49,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Financial semantics. Paired with a sign and weight change in the UI
-        // so meaning never rests on colour alone.
-        gain: "hsl(var(--gain))",
-        loss: "hsl(var(--loss))",
+        // Financial semantics. Always paired with a sign or a word, never
+        // carrying the meaning on their own.
+        gain: {
+          DEFAULT: "hsl(var(--gain))",
+          wash: "hsl(var(--gain-wash))",
+        },
+        loss: {
+          DEFAULT: "hsl(var(--loss))",
+          wash: "hsl(var(--loss-wash))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -50,22 +66,55 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Inter var", "Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+        // Serif for company names and section titles: a financial document has
+        // authority, and every other screener is sans throughout.
+        display: ['ui-serif', 'Georgia', '"Iowan Old Style"', '"Times New Roman"', 'serif'],
+        sans: [
+          'system-ui',
+          '-apple-system',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'sans-serif',
+        ],
+        // Numbers and micro-labels. Tabular by default via the .tabular class.
+        mono: [
+          'ui-monospace',
+          '"SF Mono"',
+          '"Cascadia Mono"',
+          'Menlo',
+          'Consolas',
+          '"Liberation Mono"',
+          'monospace',
+        ],
+      },
+      fontSize: {
+        // A deliberate scale. The jump from `data` to `hero` is the point:
+        // financial UIs are uniformly 13px and have no hierarchy at all.
+        micro: ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.02em" }],
+        data: ["0.8125rem", { lineHeight: "1.25rem" }],
+        hero: ["clamp(2.75rem, 6vw, 4rem)", { lineHeight: "1", letterSpacing: "-0.03em" }],
+        title: ["clamp(1.5rem, 3vw, 2rem)", { lineHeight: "1.15", letterSpacing: "-0.02em" }],
+      },
+      boxShadow: {
+        tile: "var(--shadow-tile)",
+        panel: "var(--shadow-panel)",
+        pop: "var(--shadow-pop)",
       },
       keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "none" },
         },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+        "sweep-in": {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        // One page-load gesture, staggered by delay on the caller.
+        "fade-up": "fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "sweep-in": "sweep-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

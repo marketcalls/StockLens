@@ -39,7 +39,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   return (
     <div className="container flex min-h-[70vh] items-center justify-center py-12">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="font-display text-title font-semibold">
           {signingUp ? "Create your account" : "Sign in"}
         </h1>
         <p className="mb-6 mt-1 text-sm text-muted-foreground">

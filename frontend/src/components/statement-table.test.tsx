@@ -28,9 +28,9 @@ describe("StatementTable", () => {
     expect(screen.getByText("10,75,675")).toBeInTheDocument()
   })
 
-  it("shows a dash for a missing figure rather than zero", () => {
+  it("shows an em dash for a missing figure rather than zero", () => {
     render(<StatementTable headers={["Mar 2026"]} rows={[row({ values: [null] })]} />)
-    expect(screen.getByText("-")).toBeInTheDocument()
+    expect(screen.getByText("—")).toBeInTheDocument()
     expect(screen.queryByText("0")).not.toBeInTheDocument()
   })
 

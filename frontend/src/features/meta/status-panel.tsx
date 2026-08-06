@@ -14,9 +14,9 @@ function Card({
 }) {
   return (
     <section
-      className={cn("rounded-lg border bg-card p-5 text-card-foreground shadow-sm", className)}
+      className={cn("panel p-5", className)}
     >
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="eyebrow">
         {title}
       </h2>
       <div className="mt-4">{children}</div>

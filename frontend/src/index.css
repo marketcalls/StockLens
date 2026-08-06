@@ -2,75 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Palette source: the Indian rupee note series. The ₹100 note's lavender-indigo
+ * gives the primary; it keeps continuity with the previous indigo while being
+ * specific to this market rather than a framework default. Dark mode is
+ * ink-navy rather than neutral grey, because the subject is a printed ledger.
+ *
+ * Typefaces are system stacks on purpose. `font-src 'self'` in the production
+ * CSP would block a webfont host, and a self-hosted tool should not need the
+ * network to render a number.
+ */
+
 @layer base {
   :root {
-    --background: 220 33% 98%;
-    --foreground: 224 24% 12%;
+    --background: 222 26% 97%;
+    --foreground: 224 32% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 224 24% 12%;
+    --card-foreground: 224 32% 11%;
+
+    /* One step above the card, for readout tiles and table headers. */
+    --raised: 222 24% 94%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 24% 12%;
+    --popover-foreground: 224 32% 11%;
 
-    --primary: 243 75% 59%;
+    --primary: 256 60% 47%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 224 24% 20%;
+    --secondary: 222 22% 93%;
+    --secondary-foreground: 224 28% 20%;
 
-    --muted: 220 20% 94%;
-    --muted-foreground: 220 10% 44%;
+    --muted: 222 22% 93%;
+    --muted-foreground: 223 12% 44%;
 
-    --accent: 220 20% 94%;
-    --accent-foreground: 224 24% 20%;
+    --accent: 256 52% 94%;
+    --accent-foreground: 256 60% 34%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 4 72% 47%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 16% 88%;
-    --input: 220 16% 88%;
-    --ring: 243 75% 59%;
+    --border: 222 18% 89%;
+    --input: 222 18% 86%;
+    --ring: 256 60% 47%;
 
-    /* Financial semantics. Chosen for contrast against --background in both
-       themes, and never used as the only signal - see FinancialValue. */
-    --gain: 152 62% 30%;
-    --loss: 0 68% 45%;
+    /* Rules inside data tables sit lighter than structural borders, so a dense
+       grid does not read as a cage. */
+    --grid: 222 16% 92%;
 
-    --radius: 0.6rem;
+    /* Financial semantics. Deep rather than neon: these sit against white for
+       hours at a time. Never the only signal - see FinancialValue usage. */
+    --gain: 162 68% 27%;
+    --loss: 4 70% 45%;
+    --gain-wash: 162 44% 94%;
+    --loss-wash: 4 60% 96%;
+
+    --radius: 0.5rem;
+
+    --shadow-tile: 0 1px 2px hsl(224 32% 11% / 0.05);
+    --shadow-panel: 0 1px 3px hsl(224 32% 11% / 0.06), 0 8px 24px -12px hsl(224 32% 11% / 0.12);
+    --shadow-pop: 0 4px 12px hsl(224 32% 11% / 0.1), 0 16px 40px -16px hsl(224 32% 11% / 0.22);
   }
 
   .dark {
-    --background: 224 28% 8%;
-    --foreground: 220 20% 94%;
+    --background: 226 34% 7%;
+    --foreground: 220 22% 92%;
 
-    --card: 224 26% 11%;
-    --card-foreground: 220 20% 94%;
+    --card: 225 30% 10%;
+    --card-foreground: 220 22% 92%;
 
-    --popover: 224 26% 11%;
-    --popover-foreground: 220 20% 94%;
+    --raised: 225 26% 14%;
 
-    --primary: 243 80% 70%;
-    --primary-foreground: 224 28% 8%;
+    --popover: 225 30% 12%;
+    --popover-foreground: 220 22% 92%;
 
-    --secondary: 224 20% 17%;
-    --secondary-foreground: 220 20% 94%;
+    --primary: 256 86% 73%;
+    --primary-foreground: 226 34% 8%;
 
-    --muted: 224 20% 17%;
-    --muted-foreground: 220 12% 62%;
+    --secondary: 225 24% 17%;
+    --secondary-foreground: 220 22% 92%;
 
-    --accent: 224 20% 17%;
-    --accent-foreground: 220 20% 94%;
+    --muted: 225 24% 16%;
+    --muted-foreground: 220 12% 60%;
 
-    --destructive: 0 62% 55%;
-    --destructive-foreground: 0 0% 100%;
+    --accent: 256 34% 22%;
+    --accent-foreground: 256 86% 84%;
 
-    --border: 224 18% 22%;
-    --input: 224 18% 22%;
-    --ring: 243 80% 70%;
+    --destructive: 4 78% 62%;
+    --destructive-foreground: 226 34% 8%;
 
-    --gain: 152 55% 55%;
-    --loss: 0 75% 68%;
+    --border: 225 20% 19%;
+    --input: 225 20% 24%;
+    --ring: 256 86% 73%;
+
+    --grid: 225 20% 16%;
+
+    --gain: 160 58% 52%;
+    --loss: 4 82% 68%;
+    --gain-wash: 160 40% 14%;
+    --loss-wash: 4 46% 15%;
+
+    /* Elevation in the dark comes from a lifted surface and a hairline, not a
+       drop shadow - a shadow on near-black reads as a smudge. */
+    --shadow-tile: 0 0 0 1px hsl(225 20% 20%);
+    --shadow-panel: 0 0 0 1px hsl(225 20% 19%), 0 12px 32px -16px hsl(0 0% 0% / 0.7);
+    --shadow-pop: 0 0 0 1px hsl(225 20% 24%), 0 20px 50px -20px hsl(0 0% 0% / 0.85);
   }
 }
 
@@ -79,13 +115,89 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 
-  /* Financial figures line up in columns only with tabular numerals. */
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1,
+      "ss01" 1;
+  }
+
+  /* Financial figures line up in columns only with tabular numerals. Applied
+     wherever a number sits in a column, never to running prose. */
   .tabular {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Scrollbars inside data tables, which are scrolled constantly. */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scroll-slim::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* The micro-label: mono, uppercase, widely tracked. Used for every eyebrow,
+     column head and unit note, so structural text is instantly distinguishable
+     from content text. */
+  .eyebrow {
+    @apply font-mono text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  .panel {
+    @apply rounded-lg border bg-card;
+    box-shadow: var(--shadow-panel);
+  }
+
+  /* A hairline that fades at both ends, used to separate the hero from the
+     data below without drawing a hard line across the page. */
+  .rule-fade {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      hsl(var(--border)) 12%,
+      hsl(var(--border)) 88%,
+      transparent
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

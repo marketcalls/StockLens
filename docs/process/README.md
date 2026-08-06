@@ -19,3 +19,4 @@ plain word will do. Where something went wrong, it says so and says what fixed i
 | 2026-08-06 | [Phase 3 - the screener interface](2026-08-06-phase-3-screener-interface.md) | Query box with multi-word autocomplete, results grid, presets, and an honest row cap. Phase 3 complete. |
 | 2026-08-06 | [Phase 4 - accounts and workflow](2026-08-06-phase-4-accounts-and-workflow.md) | Accounts, the role hierarchy, saved screens, watchlists and export. Caught a session cookie that silently stopped working outside one environment name. |
 | 2026-08-06 | [Phase 4 - the workspace interface](2026-08-06-phase-4-workspace-interface.md) | Sign in, saved screens, watchlists, export, and the row cap as a real invitation. Phase 4 complete. |
+| 2026-08-06 | [The interface, rebuilt](2026-08-06-ui-redesign.md) | New palette, type system and the trend rail. Fixed the statement table that overflowed its panel and cut the newest column in half. |

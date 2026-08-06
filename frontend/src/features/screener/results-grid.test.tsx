@@ -74,7 +74,7 @@ describe("ResultsGrid", () => {
     expect(firstCells).toEqual(["1", "2"])
   })
 
-  it("shows a dash for a missing figure rather than zero", () => {
+  it("shows an em dash for a missing figure rather than zero", () => {
     view(
       result({
         rows: [{ symbol: "X", name: "X Ltd", market_cap: 100, pe: null, returnonequity: null }],
@@ -82,7 +82,7 @@ describe("ResultsGrid", () => {
         returned: 1,
       }),
     )
-    expect(screen.getAllByText("-").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0)
   })
 
   it("shows the cap as a real row stating the true total", () => {

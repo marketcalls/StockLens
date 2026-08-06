@@ -133,7 +133,7 @@ export function QueryEditor({
           placeholder={'Market Capitalization > 500 AND Return on equity > 15'}
           aria-label="Screener query"
           className={cn(
-            "w-full resize-y rounded-md border bg-card p-3 font-mono text-sm outline-none ring-offset-background transition",
+            "w-full resize-y rounded-lg border bg-card p-3.5 font-mono text-data leading-relaxed outline-none transition-colors",
             "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring",
             error && "border-loss",
           )}
@@ -190,7 +190,7 @@ export function QueryEditor({
         type="button"
         onClick={onRun}
         disabled={running || !value.trim()}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {running ? "Running..." : "Run this query"}
       </button>

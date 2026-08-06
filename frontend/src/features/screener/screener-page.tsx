@@ -71,11 +71,13 @@ export function ScreenerPage() {
   const busy = run.isPending || runPreset.isPending
 
   return (
-    <div className="container space-y-6 py-8">
+    <div className="container space-y-6 py-6 md:py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Screener</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Search {columns.data?.screenable ?? 118} fundamentals across every listed company.
+        <p className="eyebrow">Query</p>
+        <h1 className="mt-2 font-display text-title font-semibold">Screener</h1>
+        <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+          Search {columns.data?.screenable ?? 112} fundamentals across every listed company.
+          Money in Rs. Crore, percentages as plain numbers.
         </p>
       </div>
 
@@ -93,7 +95,7 @@ export function ScreenerPage() {
 
       {presets.data?.presets.length ? (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted-foreground">Ready-made screens</h2>
+          <h2 className="eyebrow mb-2.5">Ready-made screens</h2>
           <div className="flex flex-wrap gap-2">
             {presets.data.presets.map((preset) => (
               <button

@@ -1,31 +1,32 @@
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { StatementTable } from "@/components/statement-table"
+import { RangeTrack } from "@/components/trend-rail"
 import { api, type SeriesResponse } from "@/lib/api"
 import { cn, formatCrore, formatIst, formatPercent } from "@/lib/utils"
 
 function Section({
   title,
+  eyebrow,
   action,
   children,
 }: {
   title: string
+  eyebrow?: string
   action?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-lg border bg-card p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+    <section className="panel min-w-0 p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          {eyebrow ? <p className="eyebrow mb-1">{eyebrow}</p> : null}
+          <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
+            {title}
+          </h2>
+        </div>
         {action}
       </div>
       {children}
@@ -45,16 +46,20 @@ function StatementSwitch({
     { to: `/company/${symbol}/consolidated`, label: "Consolidated", active: consolidated },
   ]
   return (
-    <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Figures">
+    <div
+      className="inline-flex rounded-md border bg-raised p-0.5"
+      role="group"
+      aria-label="Figures"
+    >
       {options.map((option) => (
         <Link
           key={option.label}
           to={option.to}
           aria-current={option.active ? "page" : undefined}
           className={cn(
-            "rounded px-3 py-1 text-xs font-medium transition",
+            "rounded px-2.5 py-1 font-mono text-micro uppercase tracking-wider transition-colors",
             option.active
-              ? "bg-primary text-primary-foreground"
+              ? "bg-card font-medium text-foreground shadow-tile"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -67,7 +72,7 @@ function StatementSwitch({
 
 function SeriesTable({ data }: { data: SeriesResponse | undefined }) {
   if (!data?.available) {
-    return <p className="py-4 text-sm text-muted-foreground">Not available yet.</p>
+    return <p className="py-6 text-sm text-muted-foreground">Not available yet.</p>
   }
   return (
     <StatementTable
@@ -84,6 +89,16 @@ const SCHEMA_LABEL: Record<string, string> = {
   general_insurance: "General insurance reporting",
 }
 
+/** A readout tile. Label above, figure below, mono throughout. */
+function Readout({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-card px-3 py-2.5 sm:px-4 sm:py-3">
+      <div className="eyebrow truncate">{label}</div>
+      <div className="tabular mt-1 font-mono text-sm font-medium sm:text-base">{value}</div>
+    </div>
+  )
+}
+
 export function CompanyPage() {
   const { symbol = "" } = useParams()
   const upper = symbol.toUpperCase()
@@ -93,10 +108,7 @@ export function CompanyPage() {
   const consolidated = useLocation().pathname.endsWith("/consolidated")
   const statementType: "c" | "s" = consolidated ? "c" : "s"
 
-  const company = useQuery({
-    queryKey: ["company", upper],
-    queryFn: () => api.company(upper),
-  })
+  const company = useQuery({ queryKey: ["company", upper], queryFn: () => api.company(upper) })
   const quarterly = useQuery({
     queryKey: ["stmt", upper, "pl", "quarterly", statementType],
     queryFn: () => api.statements(upper, "pl", "quarterly", statementType),
@@ -129,12 +141,12 @@ export function CompanyPage() {
 
   if (company.isError) {
     return (
-      <div className="container py-16 text-center">
-        <h1 className="text-xl font-semibold">Company not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          No company with the symbol {upper}.
-        </p>
-        <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+      <div className="container py-24 text-center">
+        <p className="eyebrow">Not found</p>
+        <h1 className="mt-2 font-display text-title font-semibold">
+          No company called {upper}
+        </h1>
+        <Link to="/" className="mt-5 inline-block text-sm text-primary hover:underline">
           Back to search
         </Link>
       </div>
@@ -142,7 +154,15 @@ export function CompanyPage() {
   }
 
   if (!company.data) {
-    return <div className="container py-16 text-sm text-muted-foreground">Loading {upper}...</div>
+    return (
+      <div className="container py-24">
+        <div className="max-w-md space-y-3">
+          <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+          <div className="h-10 w-72 animate-pulse rounded bg-muted" />
+          <div className="h-3 w-48 animate-pulse rounded bg-muted" />
+        </div>
+      </div>
+    )
   }
 
   const c = company.data
@@ -167,162 +187,149 @@ export function CompanyPage() {
     (shown === "s" ? "Standalone figures in Rs. Crore" : "Consolidated figures in Rs. Crore") +
     (fellBack
       ? shown === "s"
-        ? " - this company does not file consolidated statements"
-        : " - showing consolidated, no standalone statements filed"
+        ? " · no consolidated statements filed"
+        : " · no standalone statements filed"
       : "")
 
+  const readouts: [string, string][] = [
+    ["Market cap", q?.market_cap != null ? `₹${formatCrore(q.market_cap, 0)} Cr` : "—"],
+    ["Stock P/E", k.pe != null ? k.pe.toFixed(2) : "—"],
+    ["Book value", k.book_value != null ? `₹${k.book_value.toFixed(2)}` : "—"],
+    ["Dividend yield", k.dividend_yield != null ? formatPercent(k.dividend_yield) : "—"],
+    ["ROCE", k.roce3yearsavg != null ? formatPercent(k.roce3yearsavg) : "—"],
+    ["ROE", k.returnonequity != null ? formatPercent(k.returnonequity) : "—"],
+    ["Debt / equity", k.totaldebttoequity != null ? k.totaldebttoequity.toFixed(2) : "—"],
+    ["EV / EBITDA", k.ev_ebitda != null ? k.ev_ebitda.toFixed(2) : "—"],
+    ["Promoter", k.promoter_holding != null ? formatPercent(k.promoter_holding) : "—"],
+    ["10Y return", k.price_cagr_10y != null ? formatPercent(k.price_cagr_10y, 1) : "—"],
+  ]
+
   return (
-    <div className="container space-y-5 py-8">
-      {/* Header */}
-      <section className="rounded-lg border bg-card p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-6">
+    <div className="container min-w-0 space-y-4 py-6 md:py-10">
+      {/* Hero. The price is what people came for, so it gets the scale. */}
+      <header className="animate-fade-up">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">{c.name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span className="font-mono">{c.symbol}</span>
-              {c.nse_code ? <span>NSE: {c.nse_code}</span> : null}
-              {c.bse_code ? <span>BSE: {c.bse_code}</span> : null}
-              {c.website ? (
-                <a
-                  href={`https://${c.website.replace(/^https?:\/\//, "")}`}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-primary hover:underline"
-                >
-                  {c.website}
-                </a>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="eyebrow">{c.symbol}</span>
+              {c.nse_code ? <span className="eyebrow">NSE</span> : null}
+              {c.bse_code ? <span className="eyebrow">BSE</span> : null}
+              {c.schema_kind ? (
+                <span className="eyebrow rounded border px-1.5 py-0.5">
+                  {SCHEMA_LABEL[c.schema_kind] ?? c.schema_kind}
+                </span>
               ) : null}
             </div>
+
+            <h1 className="mt-2 font-display text-title font-semibold">{c.name}</h1>
+
             {breadcrumb.length ? (
-              <nav aria-label="Sector" className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+              <nav aria-label="Sector" className="mt-2.5 flex flex-wrap items-center gap-1.5">
                 {breadcrumb.map((part, i) => (
-                  <span key={part} className="flex items-center gap-1">
-                    {i > 0 ? <span className="text-muted-foreground">/</span> : null}
-                    <span className="text-muted-foreground">{part}</span>
+                  <span key={part} className="flex items-center gap-1.5">
+                    {i > 0 ? <span className="text-muted-foreground/40">/</span> : null}
+                    <span className="text-micro text-muted-foreground">{part}</span>
                   </span>
                 ))}
               </nav>
             ) : null}
           </div>
 
-          <div className="text-right">
-            <div className="tabular text-3xl font-semibold">
-              {q?.current_price != null ? `₹${q.current_price.toFixed(2)}` : "-"}
+          <div className="shrink-0 lg:text-right">
+            <div className="tabular font-display text-hero font-semibold leading-none">
+              {q?.current_price != null ? `₹${q.current_price.toFixed(2)}` : "—"}
             </div>
             {q?.change_pct != null ? (
               <div
                 className={cn(
-                  "tabular text-sm font-medium",
+                  "tabular mt-2 font-mono text-sm font-medium",
                   q.change_pct >= 0 ? "text-gain" : "text-loss",
                 )}
               >
-                {q.change_pct >= 0 ? "+" : ""}
+                {q.change_pct >= 0 ? "▲" : "▼"} {q.change_pct >= 0 ? "+" : ""}
                 {q.change_pct.toFixed(2)}%
               </div>
             ) : null}
-            {q?.trade_time ? (
-              <div className="mt-1 text-xs text-muted-foreground">{formatIst(q.trade_time)}</div>
+            {q?.trade_time ? <div className="eyebrow mt-1">{formatIst(q.trade_time)}</div> : null}
+
+            {q?.high52 != null && q?.low52 != null && q?.current_price != null ? (
+              <div className="mt-4 w-full lg:w-64">
+                <RangeTrack low={q.low52} high={q.high52} current={q.current_price} />
+              </div>
             ) : null}
           </div>
         </div>
 
         {c.indices.length ? (
-          <div className="mt-4 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Part of</span>
-            {c.indices.slice(0, 6).map((index) => (
+          <div className="mt-5 flex flex-wrap items-center gap-1.5">
+            <span className="eyebrow mr-1">Part of</span>
+            {c.indices.slice(0, 5).map((index) => (
               <span
                 key={index.symbol}
-                className="rounded border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                className="rounded border bg-raised px-2 py-0.5 text-micro text-muted-foreground"
               >
                 {index.name}
               </span>
             ))}
-            {c.indices.length > 6 ? (
-              <span className="text-xs text-muted-foreground">
-                +{c.indices.length - 6} more
-              </span>
+            {c.indices.length > 5 ? (
+              <span className="text-micro text-muted-foreground">+{c.indices.length - 5}</span>
             ) : null}
           </div>
         ) : null}
+      </header>
 
-        {c.description ? (
-          <p className="mt-4 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-            {c.description}
-          </p>
-        ) : null}
-
-        {c.schema_kind ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {SCHEMA_LABEL[c.schema_kind] ?? c.schema_kind}
-          </p>
-        ) : null}
-      </section>
-
-      {/* Key ratios */}
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          ["Market Cap", q?.market_cap != null ? `₹${formatCrore(q.market_cap, 0)} Cr` : "-"],
-          ["Current Price", q?.current_price != null ? `₹${q.current_price.toFixed(2)}` : "-"],
-          [
-            "High / Low",
-            q?.high52 != null && q?.low52 != null
-              ? `₹${q.high52.toFixed(0)} / ₹${q.low52.toFixed(0)}`
-              : "-",
-          ],
-          ["Stock P/E", k.pe != null ? k.pe.toFixed(2) : "-"],
-          ["Book Value", k.book_value != null ? `₹${k.book_value.toFixed(2)}` : "-"],
-          ["Dividend Yield", k.dividend_yield != null ? formatPercent(k.dividend_yield) : "-"],
-          ["ROCE", k.roce3yearsavg != null ? formatPercent(k.roce3yearsavg) : "-"],
-          ["ROE", k.returnonequity != null ? formatPercent(k.returnonequity) : "-"],
-          ["Debt to equity", k.totaldebttoequity != null ? k.totaldebttoequity.toFixed(2) : "-"],
-          ["EV / EBITDA", k.ev_ebitda != null ? k.ev_ebitda.toFixed(2) : "-"],
-          ["Promoter holding", k.promoter_holding != null ? formatPercent(k.promoter_holding) : "-"],
-          ["10Y return", k.price_cagr_10y != null ? formatPercent(k.price_cagr_10y, 1) : "-"],
-        ].map(([label, value]) => (
-          <div key={label} className="bg-card px-4 py-3">
-            <div className="text-xs text-muted-foreground">{label}</div>
-            <div className="tabular mt-0.5 text-sm font-medium">{value}</div>
-          </div>
+      {/* Readout strip. Ten figures, mono, one grid. */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3 lg:grid-cols-5">
+        {readouts.map(([label, value]) => (
+          <Readout key={label} label={label} value={value} />
         ))}
-      </section>
+      </div>
 
-      {/* Price chart */}
+      {c.description ? (
+        <p className="max-w-prose pt-1 text-sm leading-relaxed text-muted-foreground">
+          {c.description}
+        </p>
+      ) : null}
+
       {chartData.length > 1 ? (
-        <Section title="Price">
-          <div className="h-64 w-full">
+        <Section title="Price" eyebrow="Daily close">
+          <div className="h-52 w-full sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fontFamily: "ui-monospace, monospace" }}
                   stroke="hsl(var(--muted-foreground))"
-                  minTickGap={60}
+                  minTickGap={64}
+                  tickLine={false}
+                  axisLine={false}
                   tickFormatter={(d: string) => d.slice(0, 7)}
                 />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fontFamily: "ui-monospace, monospace" }}
                   stroke="hsl(var(--muted-foreground))"
                   domain={["auto", "auto"]}
-                  width={56}
+                  width={52}
+                  tickLine={false}
+                  axisLine={false}
                 />
                 <Tooltip
                   contentStyle={{
                     background: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: 6,
+                    borderRadius: 8,
                     fontSize: 12,
+                    fontFamily: "ui-monospace, monospace",
                     color: "hsl(var(--popover-foreground))",
+                    boxShadow: "var(--shadow-pop)",
                   }}
-                  formatter={(v) => [
-                    typeof v === "number" ? `₹${v.toFixed(2)}` : "-",
-                    "Close",
-                  ]}
+                  formatter={(v) => [typeof v === "number" ? `₹${v.toFixed(2)}` : "—", "Close"]}
                 />
                 <Area
                   type="monotone"
@@ -330,6 +337,7 @@ export function CompanyPage() {
                   stroke="hsl(var(--primary))"
                   strokeWidth={1.5}
                   fill="url(#priceFill)"
+                  isAnimationActive={false}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -338,10 +346,9 @@ export function CompanyPage() {
       ) : null}
 
       <Section
-        title="Quarterly Results"
-        action={
-          <StatementSwitch symbol={upper} consolidated={consolidated} />
-        }
+        title="Quarterly results"
+        eyebrow="Profit and loss"
+        action={<StatementSwitch symbol={upper} consolidated={consolidated} />}
       >
         <StatementTable
           headers={quarterly.data?.headers ?? []}
@@ -350,7 +357,7 @@ export function CompanyPage() {
         />
       </Section>
 
-      <Section title="Profit &amp; Loss">
+      <Section title="Profit and loss" eyebrow="Annual">
         <StatementTable
           headers={annual.data?.headers ?? []}
           rows={annual.data?.rows ?? []}
@@ -358,7 +365,7 @@ export function CompanyPage() {
         />
       </Section>
 
-      <Section title="Balance Sheet">
+      <Section title="Balance sheet" eyebrow="Annual">
         <StatementTable
           headers={balance.data?.headers ?? []}
           rows={balance.data?.rows ?? []}
@@ -366,7 +373,7 @@ export function CompanyPage() {
         />
       </Section>
 
-      <Section title="Cash Flows">
+      <Section title="Cash flows" eyebrow="Annual">
         <StatementTable
           headers={cash.data?.headers ?? []}
           rows={cash.data?.rows ?? []}
@@ -374,26 +381,26 @@ export function CompanyPage() {
         />
       </Section>
 
-      <Section title="Ratios">
+      <Section title="Ratios" eyebrow="Working capital">
         <SeriesTable data={ratios.data} />
       </Section>
 
-      <Section title="Shareholding Pattern">
+      <Section title="Shareholding" eyebrow="By quarter">
         <SeriesTable data={holding.data} />
       </Section>
 
-      <Section title="Peer comparison">
+      <Section title="Peer comparison" eyebrow={peers.data?.group ?? undefined}>
         {peers.data?.peers.length ? (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-max text-sm">
+          <div className="scroll-slim min-w-0 overflow-x-auto rounded-md border">
+            <table className="w-full min-w-max">
               <thead>
-                <tr className="border-b bg-muted/50 text-left">
-                  <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 text-right font-medium">CMP</th>
-                  <th className="px-3 py-2 text-right font-medium">P/E</th>
-                  <th className="px-3 py-2 text-right font-medium">Mar Cap Rs.Cr.</th>
-                  <th className="px-3 py-2 text-right font-medium">Div Yld %</th>
-                  <th className="px-3 py-2 text-right font-medium">ROE %</th>
+                <tr className="border-b bg-raised text-left">
+                  <th className="eyebrow px-3 py-2.5">Name</th>
+                  <th className="eyebrow px-3 py-2.5 text-right">CMP</th>
+                  <th className="eyebrow px-3 py-2.5 text-right">P/E</th>
+                  <th className="eyebrow px-3 py-2.5 text-right">Mar cap</th>
+                  <th className="eyebrow px-3 py-2.5 text-right">Div yld</th>
+                  <th className="eyebrow px-3 py-2.5 text-right">ROE</th>
                 </tr>
               </thead>
               <tbody>
@@ -401,27 +408,35 @@ export function CompanyPage() {
                   <tr
                     key={peer.symbol}
                     className={cn(
-                      "border-b border-border/50 last:border-0",
-                      peer.symbol === upper && "bg-accent/50 font-medium",
+                      "border-b border-grid last:border-0 hover:bg-accent/40",
+                      peer.symbol === upper && "bg-accent/60",
                     )}
                   >
-                    <td className="px-3 py-2">
-                      <Link to={`/company/${peer.symbol}`} className="text-primary hover:underline">
+                    <td className="px-3 py-2 text-data">
+                      <Link
+                        to={`/company/${peer.symbol}`}
+                        className={cn(
+                          "hover:underline",
+                          peer.symbol === upper ? "font-semibold" : "text-primary",
+                        )}
+                      >
                         {peer.name}
                       </Link>
                     </td>
-                    <td className="tabular px-3 py-2 text-right">
-                      {peer.current_price?.toFixed(2) ?? "-"}
+                    <td className="tabular px-3 py-2 text-right font-mono text-data">
+                      {peer.current_price?.toFixed(2) ?? "—"}
                     </td>
-                    <td className="tabular px-3 py-2 text-right">{peer.pe?.toFixed(2) ?? "-"}</td>
-                    <td className="tabular px-3 py-2 text-right">
-                      {peer.market_cap != null ? formatCrore(peer.market_cap, 0) : "-"}
+                    <td className="tabular px-3 py-2 text-right font-mono text-data">
+                      {peer.pe?.toFixed(2) ?? "—"}
                     </td>
-                    <td className="tabular px-3 py-2 text-right">
-                      {peer.dividend_yield?.toFixed(2) ?? "-"}
+                    <td className="tabular px-3 py-2 text-right font-mono text-data">
+                      {peer.market_cap != null ? formatCrore(peer.market_cap, 0) : "—"}
                     </td>
-                    <td className="tabular px-3 py-2 text-right">
-                      {peer.returnonequity?.toFixed(2) ?? "-"}
+                    <td className="tabular px-3 py-2 text-right font-mono text-data">
+                      {peer.dividend_yield?.toFixed(2) ?? "—"}
+                    </td>
+                    <td className="tabular px-3 py-2 text-right font-mono text-data">
+                      {peer.returnonequity?.toFixed(2) ?? "—"}
                     </td>
                   </tr>
                 ))}

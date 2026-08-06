@@ -9,8 +9,8 @@ import { formatIst } from "@/lib/utils"
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border bg-card p-5 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold tracking-tight">{title}</h2>
+    <section className="panel p-5">
+      <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">{title}</h2>
       {children}
     </section>
   )
@@ -61,7 +61,7 @@ export function WorkspacePage() {
   if (!signedIn) {
     return (
       <div className="container py-20 text-center">
-        <h1 className="text-xl font-semibold">Your saved work lives here</h1>
+        <h1 className="font-display text-title font-semibold">Your saved work lives here</h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
           Screens you save and companies you follow. Free to create an account.
         </p>
@@ -76,9 +76,10 @@ export function WorkspacePage() {
   }
 
   return (
-    <div className="container space-y-5 py-8">
+    <div className="container space-y-5 py-6 md:py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Your workspace</h1>
+        <p className="eyebrow">Saved</p>
+        <h1 className="mt-2 font-display text-title font-semibold">Your workspace</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Signed in as {user?.email}
         </p>
