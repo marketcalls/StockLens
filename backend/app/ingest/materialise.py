@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Engine, select, text
@@ -292,21 +293,33 @@ def _label_key(label: str) -> tuple[int, int]:
     return (0, 0)
 
 
-def _load_dividends(engine: Engine) -> dict[str, float]:
-    """Trailing 12 month dividend per share."""
+def _load_dividends(engine: Engine, today: str | None = None) -> dict[str, float]:
+    """Trailing 12 month dividend per share.
+
+    The window runs back a year from today. It used to run back from the latest
+    ex-date anywhere in the database, which made every company's figure depend
+    on what other companies happened to be loaded: as the backfill reached
+    Glenmark, whose next ex-date is 2026-08-31, the cutoff jumped to 2025-08-31
+    and Reliance's 2025-08-14 dividend fell outside it. Reliance's yield halved
+    from 0.87% to 0.45% without its own data changing at all.
+
+    That date is also in the future - an announced dividend that has not gone
+    ex yet. A dividend not yet paid is not trailing, so it does not count
+    towards the twelve months behind us either.
+    """
+    now = today or datetime.now(UTC).date().isoformat()
+    cutoff = f"{int(now[:4]) - 1}{now[4:]}"
+
     with engine.connect() as conn:
         rows = conn.execute(
             select(
                 corporate_action.c.symbol, corporate_action.c.ex_date, corporate_action.c.amount
             ).where(corporate_action.c.action == "dividend")
         ).all()
-    latest_date = max((r.ex_date for r in rows if r.ex_date), default=None)
-    if not latest_date:
-        return {}
-    cutoff = f"{int(latest_date[:4]) - 1}{latest_date[4:]}"
+
     totals: dict[str, float] = defaultdict(float)
     for row in rows:
-        if row.amount and row.ex_date and row.ex_date > cutoff:
+        if row.amount and row.ex_date and cutoff < row.ex_date <= now:
             totals[row.symbol] += row.amount
     return dict(totals)
 

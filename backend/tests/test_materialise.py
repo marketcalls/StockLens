@@ -433,3 +433,69 @@ class TestEnterpriseMultiple:
         assert self._company(db, ebitda_crore=half)["ev_ebitda"] is None
         assert self._company(db, ebitda_crore=-half)["ev_ebitda"] is None
         assert self._company(db, ebitda_crore=MIN_EBITDA_FOR_MULTIPLE * 2)["ev_ebitda"] is not None
+
+
+class TestTrailingDividend:
+    """The twelve-month window must belong to the company, not the database.
+
+    The cutoff used to be derived from the latest ex-date anywhere in the
+    corporate-actions table, so every company's trailing dividend depended on
+    what other companies happened to be loaded. When the backfill reached
+    Glenmark, whose next ex-date is 2026-08-31, the cutoff jumped to 2025-08-31
+    and Reliance's 2025-08-14 dividend fell outside it - halving Reliance's
+    yield from 0.87% to 0.45% without a single figure of its own changing.
+    """
+
+    TODAY = "2026-08-07"
+
+    def _dividends(self, db: Engine, rows: list[tuple[str, str, float]]) -> dict:
+        from app.db.layer2 import corporate_action
+        from app.ingest.materialise import _load_dividends
+
+        l2.upsert(
+            db,
+            corporate_action,
+            [
+                {
+                    "symbol": symbol,
+                    "action": "dividend",
+                    "ex_date": ex_date,
+                    "subject": "final dividend",
+                    "amount": amount,
+                    "dividend_type": "final dividend",
+                }
+                for symbol, ex_date, amount in rows
+            ],
+        )
+        return _load_dividends(db, today=self.TODAY)
+
+    def test_one_companys_dividend_does_not_move_anothers_window(self, db: Engine) -> None:
+        totals = self._dividends(
+            db,
+            [
+                ("RELIANCE", "2026-06-05", 6.0),
+                ("RELIANCE", "2025-08-14", 5.5),
+                # Glenmark's ex-date is later than both, and in the future.
+                ("GLENMARK", "2026-08-31", 2.5),
+            ],
+        )
+        assert totals["RELIANCE"] == 11.5
+
+    def test_a_dividend_that_has_not_gone_ex_is_not_trailing(self, db: Engine) -> None:
+        totals = self._dividends(
+            db, [("GLENMARK", "2026-08-31", 2.5), ("GLENMARK", "2026-03-01", 2.5)]
+        )
+        assert totals["GLENMARK"] == 2.5
+
+    def test_a_dividend_older_than_a_year_is_excluded(self, db: Engine) -> None:
+        totals = self._dividends(db, [("X", "2026-06-05", 6.0), ("X", "2025-08-06", 99.0)])
+        assert totals["X"] == 6.0
+
+    def test_the_boundary_is_a_year_back_from_today(self, db: Engine) -> None:
+        # 2025-08-07 is exactly a year before TODAY and is outside; the next day
+        # is inside. Pinned because an off-by-one here silently drops a dividend.
+        assert self._dividends(db, [("X", "2025-08-07", 5.0)]) == {}
+        assert self._dividends(db, [("Y", "2025-08-08", 5.0)])["Y"] == 5.0
+
+    def test_a_company_that_pays_nothing_is_absent_not_zero(self, db: Engine) -> None:
+        assert "NOPAYER" not in self._dividends(db, [("X", "2026-06-05", 6.0)])
