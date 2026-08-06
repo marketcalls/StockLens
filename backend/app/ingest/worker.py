@@ -25,6 +25,7 @@ from app.finedge.client import (
     FinEdgeParameterError,
 )
 from app.finedge.endpoints import Call, symbol_endpoint_matrix, universe_endpoints
+from app.ingest.backfill import backfill_symbols, dry_run, prioritised_symbols
 from app.ingest.jobs import run_price_refresh, run_universe_sync
 from app.ingest.store import finish_run, record_task, start_run, store_raw
 from app.logging_setup import configure_logging
@@ -132,6 +133,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("prices", help="Refresh quotes for the whole universe in one call")
     sub.add_parser("raw-universe", help="Archive the universe-wide endpoints as raw only")
 
+    back = sub.add_parser("backfill", help="Fetch and normalise many symbols, prioritised")
+    back.add_argument("--limit", type=int, help="Only the top N symbols by priority")
+    back.add_argument("--budget", type=int, help="Hard ceiling on API calls")
+    back.add_argument("--symbols", nargs="*", help="Explicit symbols instead of the priority order")
+    back.add_argument("--dry-run", action="store_true", help="Report the cost without fetching")
+
     plan = sub.add_parser("plan", help="Print the call plan without fetching")
     plan.add_argument("symbol")
 
@@ -149,6 +156,28 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{call.endpoint} {call.params or ''}".strip())
         print(f"\n{len(calls)} calls planned for {args.symbol.upper()}")
         return 0
+
+    if args.command == "backfill":
+        from app.db.engine import get_engine as _engine
+        from app.db.layer2 import create_layer2 as _cl2
+
+        core = _engine()
+        _cl2(core)
+        symbols = (
+            [s.upper() for s in args.symbols]
+            if args.symbols
+            else prioritised_symbols(core, limit=args.limit)
+        )
+        if not symbols:
+            print("No symbols. Run `universe` first to load the symbol master.")
+            return 1
+        if args.dry_run:
+            for key, value in dry_run(core, symbols).items():
+                print(f"{key}: {value}")
+            return 0
+        result = asyncio.run(backfill_symbols(symbols, call_budget=args.budget)).as_dict()
+        print("\n".join(f"{k}: {v}" for k, v in result.items()))
+        return 0 if result["failed"] == 0 else 1
 
     if args.command == "fetch":
         symbol = args.symbol.upper()

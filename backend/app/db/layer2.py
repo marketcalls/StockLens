@@ -185,3 +185,106 @@ index_return = Table(
 
 def create_layer2(engine: object) -> None:
     layer2_metadata.create_all(engine)  # type: ignore[arg-type]
+
+
+# --- Derived and ratio series -------------------------------------------------
+# These arrive already computed from FinEdge, so we store rather than derive.
+# Each is a time series keyed by header ("TTM", "Mar 2026").
+
+basic_financial = Table(
+    "basic_financial",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("statement_type", String, primary_key=True),  # s | c
+    Column("statement_code", String, primary_key=True),  # pl | bs | cf
+    Column("header", String, primary_key=True),
+    Column("field_name", String, primary_key=True),
+    Column("year", Integer),
+    Column("value", Float),
+    Index("idx_basicfin_symbol", "symbol", "statement_code"),
+)
+
+
+ratio = Table(
+    "ratio",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("statement_type", String, primary_key=True),
+    Column("family", String, primary_key=True),  # pr | le | li | ef
+    Column("header", String, primary_key=True),
+    Column("field_name", String, primary_key=True),
+    Column("year", Integer),
+    Column("value", Float),
+    Index("idx_ratio_symbol", "symbol", "family"),
+)
+
+
+metric = Table(
+    "metric",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("statement_type", String, primary_key=True),
+    Column("family", String, primary_key=True),  # gr | av | cu
+    Column("field_name", String, primary_key=True),
+    Column("value", Float),
+    Index("idx_metric_symbol", "symbol", "family"),
+)
+
+
+price_ratio_daily = Table(
+    "price_ratio_daily",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("statement_type", String, primary_key=True),
+    Column("quote_date", String, primary_key=True),
+    Column("pe", Float),
+    Column("pb", Float),
+    Column("ptb", Float),
+    Column("ps", Float),
+    Column("pfcf", Float),
+    Index("idx_prd_symbol_date", "symbol", "quote_date"),
+)
+
+
+price_ratio_annual = Table(
+    "price_ratio_annual",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("statement_type", String, primary_key=True),
+    Column("header", String, primary_key=True),
+    Column("year", Integer),
+    Column("average_price", Float),
+    Column("pe", Float),
+    Column("pb", Float),
+    Column("ptb", Float),
+    Column("ps", Float),
+    Column("pfcf", Float),
+)
+
+
+shareholding = Table(
+    "shareholding",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("period_label", String, primary_key=True),
+    Column("group_name", String, primary_key=True),
+    Column("shareholding_pct", Float),
+    Column("total_shares", Float),
+    Column("total_shareholders", Float),
+    Column("pledged_pct", Float),
+    Column("locked_in_pct", Float),
+    Index("idx_shareholding_symbol", "symbol"),
+)
+
+
+corporate_action = Table(
+    "corporate_action",
+    layer2_metadata,
+    Column("symbol", String, primary_key=True),
+    Column("action", String, primary_key=True),  # dividend | split | bonus | rights
+    Column("ex_date", String, primary_key=True),
+    Column("subject", String, primary_key=True, server_default=""),
+    Column("amount", Float),
+    Column("dividend_type", String),
+    Index("idx_corpaction_symbol", "symbol", "action"),
+)

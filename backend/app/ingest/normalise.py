@@ -370,3 +370,231 @@ def normalise_prices(symbol: str, payload: Any) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _series_rows(
+    payload: Any,
+    container: str,
+    key_fields: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Shared shape for `{container: [{header, year, <field>: value, ...}]}`.
+
+    Used by basic-financials and ratios, which both return a time series of
+    flat numeric maps tagged with a `header` such as "TTM" or "Mar 2026".
+    """
+    series = payload.get(container) if isinstance(payload, dict) else None
+    if not series:
+        return []
+    rows = []
+    for entry in series:
+        header = entry.get("header")
+        if not header:
+            continue
+        year = _as_int(entry.get("year"))
+        for name, raw in entry.items():
+            if name in ("header", "year"):
+                continue
+            rows.append(
+                {
+                    **key_fields,
+                    "header": header,
+                    "field_name": name,
+                    "year": year,
+                    "value": parse_number(raw),
+                }
+            )
+    return rows
+
+
+def normalise_basic_financials(
+    symbol: str, statement_type: str, statement_code: str, payload: Any
+) -> list[dict[str, Any]]:
+    """`/api/v1/basic-financials/{symbol}` -> long rows.
+
+    These are FinEdge's own derived aggregates (ebitda, fcf, book value and so
+    on), so we store them rather than recompute and risk disagreeing with the
+    figures shown elsewhere.
+    """
+    return _series_rows(
+        payload,
+        "ratios",
+        {"symbol": symbol, "statement_type": statement_type, "statement_code": statement_code},
+    )
+
+
+def normalise_ratios(
+    symbol: str, statement_type: str, family: str, payload: Any
+) -> list[dict[str, Any]]:
+    """`/api/v1/ratios/{symbol}` -> long rows, one per ratio per period."""
+    return _series_rows(
+        payload,
+        "ratios",
+        {"symbol": symbol, "statement_type": statement_type, "family": family},
+    )
+
+
+def normalise_metrics(
+    symbol: str, statement_type: str, family: str, payload: Any
+) -> list[dict[str, Any]]:
+    """`/api/v1/financial-metrics/{symbol}` -> long rows.
+
+    Unlike ratios these are point-in-time, not a series: one growth or average
+    figure per field.
+    """
+    metrics = payload.get("financial_metrics") if isinstance(payload, dict) else None
+    if not metrics:
+        return []
+    return [
+        {
+            "symbol": symbol,
+            "statement_type": statement_type,
+            "family": family,
+            "field_name": name,
+            "value": parse_number(raw),
+        }
+        for name, raw in metrics.items()
+    ]
+
+
+def normalise_price_ratios_daily(
+    symbol: str, statement_type: str, payload: Any
+) -> list[dict[str, Any]]:
+    series = payload.get("price_ratios") if isinstance(payload, dict) else None
+    if not series:
+        return []
+    rows = []
+    for entry in series:
+        quote_date = parse_date(entry.get("quote_date"))
+        if not quote_date:
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "statement_type": statement_type,
+                "quote_date": quote_date,
+                "pe": parse_number(entry.get("pe")),
+                "pb": parse_number(entry.get("pb")),
+                "ptb": parse_number(entry.get("ptb")),
+                "ps": parse_number(entry.get("ps")),
+                "pfcf": parse_number(entry.get("pfcf")),
+            }
+        )
+    return rows
+
+
+def normalise_price_ratios_annual(
+    symbol: str, statement_type: str, payload: Any
+) -> list[dict[str, Any]]:
+    """Annual valuation series.
+
+    A zero here means the ratio could not be computed for that year, not that
+    the company traded at zero times book, so zeros become None.
+    """
+    series = payload.get("price_ratios") if isinstance(payload, dict) else None
+    if not series:
+        return []
+    rows = []
+    for entry in series:
+        header = entry.get("header")
+        if not header:
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "statement_type": statement_type,
+                "header": header,
+                "year": _as_int(entry.get("year")),
+                "average_price": parse_number(entry.get("average_price")),
+                **{
+                    name: _zero_to_none(parse_number(entry.get(name)))
+                    for name in ("pe", "pb", "ptb", "ps", "pfcf")
+                },
+            }
+        )
+    return rows
+
+
+def _zero_to_none(value: float | None) -> float | None:
+    return None if value == 0 else value
+
+
+def normalise_dividends(symbol: str, payload: Any) -> list[dict[str, Any]]:
+    entries = payload.get("dividend") if isinstance(payload, dict) else None
+    if not entries:
+        return []
+    rows = []
+    for entry in entries:
+        ex_date = parse_date(entry.get("date"))
+        if not ex_date:
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "action": "dividend",
+                "ex_date": ex_date,
+                "subject": entry.get("dividend_type") or "",
+                "amount": parse_number(entry.get("amount")),
+                "dividend_type": entry.get("dividend_type"),
+            }
+        )
+    return rows
+
+
+def normalise_corporate_action(symbol: str, action: str, payload: Any) -> list[dict[str, Any]]:
+    entries = payload.get(action) if isinstance(payload, dict) else None
+    if not entries:
+        return []
+    rows = []
+    for entry in entries:
+        ex_date = parse_date(entry.get("date"))
+        if not ex_date:
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "action": action,
+                "ex_date": ex_date,
+                "subject": entry.get("action") or "",
+                "amount": parse_number(entry.get("amount")),
+                "dividend_type": None,
+            }
+        )
+    return rows
+
+
+# Groups reported by the shareholding distribution endpoint.
+SHAREHOLDING_GROUPS = (
+    "promoterAndPromoterGroup",
+    "publicShareholding",
+    "nonPromoterNonPublic",
+)
+
+
+def normalise_shareholding(symbol: str, payload: Any) -> list[dict[str, Any]]:
+    """`/api/v1/shareholdings/distribution/{symbol}` -> one row per group per quarter."""
+    periods = payload.get("distributions") if isinstance(payload, dict) else None
+    if not periods:
+        return []
+    rows = []
+    for period in periods:
+        label = period.get("date_header")
+        if not label:
+            continue
+        for group in period.get("distributions") or []:
+            name = group.get("group")
+            data = group.get("data") or {}
+            if not name:
+                continue
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "period_label": label,
+                    "group_name": name,
+                    "shareholding_pct": parse_number(data.get("shareholdingPct")),
+                    "total_shares": parse_number(data.get("totalShares")),
+                    "total_shareholders": parse_number(data.get("totalShareholders")),
+                    "pledged_pct": parse_number(data.get("pledgedSharesPct")),
+                    "locked_in_pct": parse_number(data.get("lockedInSharesPct")),
+                }
+            )
+    return rows
