@@ -180,3 +180,6 @@ editor uses to point at it.
   using it.
 - **Missing is not zero.** A `None` means the company never reported that line.
   Treating it as zero will produce wrong ratios.
+- **A screener condition never matches an unknown**, whichever way it is
+  written. `NOT (Price to Earning > 20)` is the same set as
+  `Price to Earning <= 20`, not the whole universe minus the expensive ones.

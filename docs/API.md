@@ -138,6 +138,12 @@ Market Capitalization > 500 AND Price to Earning < 15 AND Return on equity > 18
 (`Debt < Reserves`) all work. Public callers get 25 rows; `total` is always the
 true count, so the UI can say what is being withheld.
 
+**A company with no value for a column matches nothing on it — either way
+round.** `NOT (Price to Earning > 20)` returns companies known to trade under 20
+times earnings, not the thousands whose statements have yet to be downloaded.
+`NOT (x > n)` and `x <= n` give the same answer. To find companies that report
+nothing, screen on something they do report.
+
 ## Saved work
 
 | Route | Effect |

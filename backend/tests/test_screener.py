@@ -158,14 +158,42 @@ class TestSecurity:
 
 
 class TestNullHandling:
-    def test_not_treats_an_unknown_as_true(self) -> None:
-        """`NOT (pledge > 0)` should include companies that report no pledge.
+    """An unknown value matches nothing, whichever way the test is written.
 
-        Without COALESCE, NULL > 0 is NULL, NOT NULL is NULL, and the row drops
-        out - excluding exactly the companies the user is asking for.
-        """
+    NOT used to compile to `NOT COALESCE(inner, 0)`, so that
+    `NOT (pledge > 0)` would include companies reporting no pledge. That reads
+    well until you notice what it does to a column that is merely undownloaded:
+    `NOT (Price to Earning > 20)` returned 5,180 companies when only 54 are
+    known to trade under 20 times earnings, because five thousand companies with
+    no P/E counted as having a P/E of zero.
+
+    Missing is not zero - the rule that has held everywhere else in this
+    codebase - and NOT was the one operator that broke it.
+    """
+
+    def test_not_excludes_unknowns_like_every_other_operator(self) -> None:
         where, _ = sql_for("NOT (Promoter pledge > 0)")
-        assert "COALESCE" in where
+        assert "COALESCE" not in where
+
+    def test_not_agrees_with_the_comparison_it_negates(self, db: Engine) -> None:
+        """`NOT (x > n)` and `x <= n` must return the same companies."""
+        negated = run_screen(db, "NOT (Price to Earning > 20)")
+        direct = run_screen(db, "Price to Earning <= 20")
+        assert {r["symbol"] for r in negated.rows} == {r["symbol"] for r in direct.rows}
+        assert negated.total == direct.total
+
+    def test_a_company_with_no_value_matches_neither_side(self, db: Engine) -> None:
+        above = {r["symbol"] for r in run_screen(db, "Price to Earning > 20").rows}
+        below = {r["symbol"] for r in run_screen(db, "NOT (Price to Earning > 20)").rows}
+        assert not (above & below), "a company cannot be on both sides of the same test"
+
+    def test_unknowns_are_not_swept_into_the_negation(self, db: Engine) -> None:
+        """The bug in one line: NOT must not return the whole universe."""
+        from app.screener.catalog import COLUMNS_BY_KEY  # noqa: F401
+
+        everyone = run_screen(db, "Market Capitalization > 0").total
+        negated = run_screen(db, "NOT (Price to Earning > 20)").total
+        assert negated < everyone
 
     def test_a_plain_comparison_excludes_unknowns(self) -> None:
         """A company with no reported ROE must not match `ROE > 15`."""

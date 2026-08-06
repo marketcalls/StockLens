@@ -66,11 +66,18 @@ class Compiler:
 
         if isinstance(node, NotNode):
             inner = self.visit(node.operand)
-            # An unknown value makes the inner test NULL. Without COALESCE the
-            # NOT stays NULL and the row drops out, so "NOT (pledge > 0)" would
-            # exclude every company that reports no pledge at all - the opposite
-            # of what the user means.
-            return f"(NOT COALESCE({inner}, 0))"
+            # Unknown stays unknown. This used to be COALESCE(inner, 0), on the
+            # reasoning that "NOT (pledge > 0)" should include companies that
+            # report no pledge - but a missing figure means the statements have
+            # not been downloaded, not that the value is zero. With the coalesce,
+            # "NOT (Price to Earning > 20)" returned 5,180 companies when only 54
+            # are known to trade under 20 times earnings, because five thousand
+            # companies with no P/E were counted as having a P/E of zero.
+            #
+            # Every other operator already drops unknowns - `pe <= 20` gives 54
+            # and `pe > 20` gives 157, together exactly the 211 companies that
+            # have a P/E - so NOT was the one place the rule did not hold.
+            return f"(NOT {inner})"
 
         if isinstance(node, CompareNode):
             left = self.expr(node.left)
@@ -98,7 +105,9 @@ class Compiler:
         # Case-insensitive so `Sector IN ("banks")` matches "Banks".
         values = ", ".join(f"UPPER({self.bind(v)})" for v in node.values)
         clause = f"UPPER({key}) IN ({values})"
-        return f"(NOT COALESCE({clause}, 0))" if node.negated else f"({clause})"
+        # Same rule as NOT above: a company with no sector recorded does not
+        # match `Sector NOT IN (...)`, because nothing is known about it.
+        return f"(NOT {clause})" if node.negated else f"({clause})"
 
     def expr(self, node: Node) -> str:
         if isinstance(node, NumberNode):
