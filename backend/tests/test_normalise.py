@@ -374,3 +374,69 @@ class TestPrices:
 
     def test_empty(self) -> None:
         assert normalise_prices("X", {"symbol": "X", "price": []}) == []
+
+
+class TestNonTradingRows:
+    """FinEdge emits all-zero OHLCV rows for Muhurat and special sessions.
+
+    Stored literally they draw a vertical spike to zero on every price chart,
+    and a close of zero is not a price.
+    """
+
+    def test_all_zero_row_is_dropped(self) -> None:
+        payload = {
+            "symbol": "RELIANCE",
+            "price": [
+                {
+                    "quote_date": "2024-11-01",
+                    "open_price": 0,
+                    "close_price": 0,
+                    "high_price": 0,
+                    "low_price": 0,
+                    "volume": 0,
+                },
+                {
+                    "quote_date": "2024-11-04",
+                    "open_price": 1283.3,
+                    "close_price": 1325,
+                    "high_price": 1325,
+                    "low_price": 1282,
+                    "volume": 3185361,
+                },
+            ],
+        }
+        rows = normalise_prices("RELIANCE", payload)
+        assert [r["quote_date"] for r in rows] == ["2024-11-04"]
+
+    def test_a_genuine_zero_volume_day_is_kept(self) -> None:
+        """No trades but a carried price is real data, unlike an all-zero row."""
+        payload = {
+            "symbol": "X",
+            "price": [
+                {
+                    "quote_date": "2024-11-01",
+                    "open_price": 100,
+                    "close_price": 100,
+                    "high_price": 100,
+                    "low_price": 100,
+                    "volume": 0,
+                }
+            ],
+        }
+        assert len(normalise_prices("X", payload)) == 1
+
+    def test_row_of_nulls_is_dropped(self) -> None:
+        payload = {
+            "symbol": "X",
+            "price": [
+                {
+                    "quote_date": "2024-11-01",
+                    "open_price": None,
+                    "close_price": None,
+                    "high_price": None,
+                    "low_price": None,
+                    "volume": None,
+                }
+            ],
+        }
+        assert normalise_prices("X", payload) == []

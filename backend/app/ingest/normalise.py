@@ -358,17 +358,20 @@ def normalise_prices(symbol: str, payload: Any) -> list[dict[str, Any]]:
         quote_date = parse_date(item.get("quote_date"))
         if not quote_date:
             continue
-        rows.append(
-            {
-                "symbol": symbol,
-                "quote_date": quote_date,
-                "open": parse_number(item.get("open_price")),
-                "high": parse_number(item.get("high_price")),
-                "low": parse_number(item.get("low_price")),
-                "close": parse_number(item.get("close_price")),
-                "volume": parse_number(item.get("volume")),
-            }
-        )
+        values = {
+            "open": parse_number(item.get("open_price")),
+            "high": parse_number(item.get("high_price")),
+            "low": parse_number(item.get("low_price")),
+            "close": parse_number(item.get("close_price")),
+            "volume": parse_number(item.get("volume")),
+        }
+        # An all-zero row means no trading happened, not that the share was
+        # worth nothing. FinEdge emits these for Diwali Muhurat sessions and
+        # special Saturday sittings. Stored literally they draw a vertical
+        # spike to zero on every price chart.
+        if all(v in (0, None) for v in values.values()):
+            continue
+        rows.append({"symbol": symbol, "quote_date": quote_date, **values})
     return rows
 
 

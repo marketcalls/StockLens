@@ -248,11 +248,11 @@ def statements(
     for line in lines:
         by_period[line["period_id"]][line["field_name"]] = line["value"]
 
-    # Operating Profit, OPM%, EBITDA and dividend payout are FinEdge's own
-    # derived aggregates and live in basic_financial, not on the statement.
-    # Without merging them, an ordinary company's P&L loses its two headline
-    # rows. Matched by header, which is the only key the two share.
-    headers = [p["header"] for p in periods]
+    # basic_financial carries FinEdge's derived aggregates, but only as an
+    # annual and TTM series. Its headers look like "Mar 2023", which also names
+    # a quarter, so merging it into a quarterly statement silently placed annual
+    # figures in quarterly columns. Merge for annual and TTM only.
+    headers = [p["header"] for p in periods] if period in ("annual", "ttm") else []
     with _engine().connect() as conn:
         derived_rows = (
             conn.execute(

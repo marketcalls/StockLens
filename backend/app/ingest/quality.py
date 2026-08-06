@@ -131,15 +131,19 @@ def run_checks(engine: Engine) -> list[Check]:
             )
         )
 
-        negative_prices = conn.execute(
-            select(func.count()).select_from(price_daily).where(price_daily.c.close < 0)
+        # `<= 0` rather than `< 0`. Zero passed the original check and drew a
+        # spike to the axis on every affected price chart.
+        bad_prices = conn.execute(
+            select(func.count()).select_from(price_daily).where(price_daily.c.close <= 0)
         ).scalar_one()
         checks.append(
             Check(
-                "negative_close_price",
+                "non_positive_close_price",
                 "error",
-                negative_prices,
-                "A close price below zero is impossible and indicates a parsing fault.",
+                bad_prices,
+                "A close price of zero or below is not a price. FinEdge emits "
+                "all-zero rows for non-trading sessions; they are dropped at "
+                "normalisation rather than stored.",
                 [],
             )
         )

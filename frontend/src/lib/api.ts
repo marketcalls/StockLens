@@ -3,11 +3,7 @@
 export type HealthResponse = {
   status: string
   environment: string
-  finedge: {
-    reachable: boolean
-    key_configured: boolean
-    base_url: string
-  }
+  finedge: { reachable: boolean; key_configured: boolean; base_url: string }
 }
 
 export type IngestionRun = {
@@ -28,6 +24,109 @@ export type FreshnessResponse = {
     uncompressed_bytes: number
   }
   recent_runs: IngestionRun[]
+}
+
+export type SearchResult = {
+  symbol: string
+  name: string
+  sector: string | null
+  current_price: number | null
+  market_cap: number | null
+}
+
+export type Quote = {
+  symbol: string
+  current_price: number | null
+  open_price: number | null
+  high_price: number | null
+  low_price: number | null
+  volume: number | null
+  change_pct: number | null
+  high52: number | null
+  low52: number | null
+  market_cap: number | null
+  shares: number | null
+  trade_time: string | null
+}
+
+export type CompanyDetail = {
+  symbol: string
+  name: string
+  nse_code: string | null
+  bse_code: string | null
+  website: string | null
+  description: string | null
+  schema_kind: string | null
+  classification: {
+    macro_sector: string | null
+    industry: string | null
+    sector: string | null
+    sub_industry: string | null
+  }
+  quote: Quote | null
+  indices: { symbol: string; name: string }[]
+  key_ratios: Record<string, number | null>
+}
+
+export type StatementRow = {
+  label: string
+  unit: string
+  emphasis: boolean
+  values: (number | null)[]
+  children: StatementRow[]
+}
+
+export type StatementResponse = {
+  symbol: string
+  statement_code: string
+  period_kind: string
+  statement_type: string
+  schema_kind?: string | null
+  available: boolean
+  reason?: string
+  headers: string[]
+  result_dates?: (string | null)[]
+  rows: StatementRow[]
+  unit_note?: string
+}
+
+export type SeriesResponse = {
+  symbol: string
+  available: boolean
+  headers: string[]
+  rows: { label: string; unit: string; values: (number | null)[] }[]
+}
+
+export type Peer = {
+  symbol: string
+  name: string
+  current_price: number | null
+  pe: number | null
+  market_cap: number | null
+  dividend_yield: number | null
+  net_profit: number | null
+  sales: number | null
+  returnoncapital: number | null
+  returnonequity: number | null
+}
+
+export type PeersResponse = {
+  symbol: string
+  group: string | null
+  classification: Record<string, string | null>
+  peers: Peer[]
+  median: Record<string, number | null>
+  count: number
+}
+
+export type PricePoint = {
+  symbol: string
+  quote_date: string
+  open: number | null
+  high: number | null
+  low: number | null
+  close: number | null
+  volume: number | null
 }
 
 export class ApiError extends Error {
@@ -52,7 +151,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
+const qs = (params: Record<string, string | number | undefined>) =>
+  Object.entries(params)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&")
+
 export const api = {
   health: () => request<HealthResponse>("/api/meta/health"),
   freshness: () => request<FreshnessResponse>("/api/meta/freshness"),
+  search: (q: string, limit = 10) =>
+    request<{ query: string; results: SearchResult[] }>(`/api/search?${qs({ q, limit })}`),
+  companies: (limit = 12) =>
+    request<{ total: number; companies: { symbol: string; name: string; market_cap: number }[] }>(
+      `/api/companies?${qs({ limit })}`,
+    ),
+  company: (symbol: string) => request<CompanyDetail>(`/api/companies/${symbol}`),
+  statements: (symbol: string, code: string, period: string, statementType: string) =>
+    request<StatementResponse>(
+      `/api/companies/${symbol}/statements?${qs({ code, period, statement_type: statementType })}`,
+    ),
+  ratios: (symbol: string, family: string) =>
+    request<SeriesResponse>(`/api/companies/${symbol}/ratios?${qs({ family })}`),
+  shareholding: (symbol: string) =>
+    request<SeriesResponse>(`/api/companies/${symbol}/shareholding`),
+  peers: (symbol: string) => request<PeersResponse>(`/api/companies/${symbol}/peers`),
+  prices: (symbol: string, limit = 2000) =>
+    request<{ symbol: string; count: number; prices: PricePoint[] }>(
+      `/api/companies/${symbol}/prices?${qs({ limit })}`,
+    ),
 }

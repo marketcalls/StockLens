@@ -40,7 +40,7 @@ class Row:
 GENERAL_PL: tuple[Row, ...] = (
     Row(
         "Sales",
-        fields=("operatingRevenue", "revenueFromOperations"),
+        fields=("revenueFromOperations",),
         children=(
             ("Revenue from sale of product", "revenueFromSaleOfProduct"),
             ("Revenue from sale of services", "revenueFromSaleOfServices"),
@@ -49,7 +49,8 @@ GENERAL_PL: tuple[Row, ...] = (
     ),
     Row(
         "Expenses",
-        fields=("operatingExpenses", "expenses"),
+        kind="derived",
+        formula="operating_expenses",
         children=(
             ("Cost of materials consumed", "costOfMaterialsConsumed"),
             ("Purchases of stock in trade", "purchasesOfStockInTrade"),
@@ -58,7 +59,7 @@ GENERAL_PL: tuple[Row, ...] = (
             ("Other expenses", "otherExpenses"),
         ),
     ),
-    Row("Operating Profit", fields=("operatingProfit", "ebit"), emphasis=True),
+    Row("Operating Profit", kind="derived", formula="operating_profit", emphasis=True),
     Row("OPM %", kind="derived", unit="percent", formula="operating_margin"),
     Row(
         "Other Income",
@@ -271,8 +272,25 @@ def derive(formula: str, values: dict[str, float | None]) -> float | None:
     """Compute a derived row from the raw figures of the same period."""
     get = values.get
 
+    if formula == "operating_expenses":
+        # Total expenses less the two lines shown separately below, so that
+        # Sales - Expenses = Operating Profit on the page.
+        total = get("expenses")
+        if total is None:
+            return None
+        return total - (get("financeCosts") or 0) - (get("depreciationAndAmortisation") or 0)
+
+    if formula == "operating_profit":
+        sales = get("revenueFromOperations")
+        expenses = derive("operating_expenses", values)
+        return sales - expenses if sales is not None and expenses is not None else None
+
     if formula == "operating_margin":
-        profit = get("operatingProfit") or get("ebit")
+        # Derived from the statement, not from basic_financial. Those aggregates
+        # are annual-only and are keyed by a header like "Mar 2023" that also
+        # names a quarter, so merging them put annual figures in quarterly
+        # columns.
+        profit = derive("operating_profit", values)
         sales = get("revenueFromOperations")
         return profit / sales * 100 if profit is not None and sales else None
 
@@ -322,7 +340,15 @@ class RenderedRow:
 
     @property
     def has_data(self) -> bool:
-        return any(v is not None for v in self.values)
+        """A row is worth showing only if some period carries a real figure.
+
+        All-null means the company never reports the line. All-zero means the
+        same thing in practice: FinEdge returns 0 for fields it has no value
+        for, so a bank whose NPA ratios are all zero has not reported them
+        rather than achieved a zero bad-loan book.
+        """
+        present = [v for v in self.values if v is not None]
+        return bool(present) and any(v != 0 for v in present)
 
 
 CRORE = 1e-7

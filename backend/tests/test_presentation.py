@@ -42,19 +42,43 @@ class TestTemplateSelection:
 
 
 class TestDerived:
+    def test_operating_expenses_excludes_the_lines_shown_separately(self) -> None:
+        """Total expenses less interest and depreciation, which get their own rows."""
+        value = derive(
+            "operating_expenses",
+            {"expenses": 1000.0, "financeCosts": 50.0, "depreciationAndAmortisation": 100.0},
+        )
+        assert value == 850.0
+
+    def test_operating_profit_is_sales_minus_operating_expenses(self) -> None:
+        value = derive(
+            "operating_profit",
+            {
+                "revenueFromOperations": 1000.0,
+                "expenses": 900.0,
+                "financeCosts": 20.0,
+                "depreciationAndAmortisation": 30.0,
+            },
+        )
+        assert value == 150.0
+
     def test_operating_margin(self) -> None:
         value = derive(
-            "operating_margin", {"operatingProfit": 150.0, "revenueFromOperations": 1000.0}
+            "operating_margin",
+            {
+                "revenueFromOperations": 1000.0,
+                "expenses": 900.0,
+                "financeCosts": 20.0,
+                "depreciationAndAmortisation": 30.0,
+            },
         )
         assert value == 15.0
 
     def test_operating_margin_is_none_without_sales(self) -> None:
-        assert derive("operating_margin", {"operatingProfit": 150.0}) is None
+        assert derive("operating_margin", {"expenses": 100.0}) is None
 
     def test_operating_margin_does_not_divide_by_zero(self) -> None:
-        assert (
-            derive("operating_margin", {"operatingProfit": 1.0, "revenueFromOperations": 0}) is None
-        )
+        assert derive("operating_margin", {"revenueFromOperations": 0, "expenses": 1.0}) is None
 
     def test_tax_rate(self) -> None:
         assert derive("tax_rate", {"taxExpense": 25.0, "profitBeforeTax": 100.0}) == 25.0
@@ -105,7 +129,7 @@ class TestRender:
         rows = render(
             GENERAL_PL,
             [{"header": "Mar 2026"}],
-            [{"revenueFromOperations": 1000.0, "operatingProfit": 140.0}],
+            [{"revenueFromOperations": 1000.0, "expenses": 860.0}],
         )
         opm = next(r for r in rows if r["label"] == "OPM %")
         assert opm["values"][0] == 14.0
@@ -120,20 +144,23 @@ class TestRender:
         payout = next(r for r in rows if r["label"] == "Dividend Payout %")
         assert payout["values"][0] == 9.21
 
-    def test_sales_prefers_the_revenue_base_that_reconciles(self) -> None:
-        """operatingRevenue - operatingExpenses = operatingProfit.
+    def test_the_table_reconciles_by_construction(self) -> None:
+        """Sales - Expenses = Operating Profit, for every period kind.
 
-        Using revenueFromOperations for Sales left the table not adding up.
+        These three are all derived from the statement now. They used to come
+        from basic_financial, which holds annual aggregates keyed by a header
+        like "Mar 2023" - a string that also names a quarter, so quarterly
+        columns were silently showing annual figures.
         """
         rows = render(
             GENERAL_PL,
             [{"header": "Mar 2026"}],
             [
                 {
-                    "operatingRevenue": 1.104637e13,
                     "revenueFromOperations": 1.075675e13,
-                    "operatingExpenses": 9.54414e12,
-                    "operatingProfit": 1.50223e12,
+                    "expenses": 9.81475e12,
+                    "financeCosts": 2.7061e11,
+                    "depreciationAndAmortisation": 5.7688e11,
                 }
             ],
         )
@@ -141,6 +168,16 @@ class TestRender:
         expenses = next(r for r in rows if r["label"] == "Expenses")["values"][0]
         profit = next(r for r in rows if r["label"] == "Operating Profit")["values"][0]
         assert round(sales - expenses, 0) == round(profit, 0)
+
+    def test_quarterly_sales_stay_quarterly(self) -> None:
+        """A quarter is roughly a quarter of a year, not a whole one."""
+        rows = render(
+            GENERAL_PL,
+            [{"header": "Mar 2023"}],
+            [{"revenueFromOperations": 2.3286e12, "expenses": 2.1592e12}],
+        )
+        sales = next(r for r in rows if r["label"] == "Sales")["values"][0]
+        assert 200_000 < sales < 300_000
 
     def test_rows_with_no_data_are_dropped(self) -> None:
         """A company reporting no depreciation should not show an empty row."""
@@ -182,3 +219,40 @@ class TestRender:
 
     def test_no_periods_produces_no_rows(self) -> None:
         assert render(GENERAL_PL, [], []) == []
+
+
+class TestAllZeroRows:
+    def test_a_row_that_is_zero_in_every_period_is_dropped(self) -> None:
+        """A bank showing 0% gross NPA across every quarter has not reported it.
+
+        FinEdge returns 0 for fields it has no value for, so an all-zero row is
+        absence rather than an achievement.
+        """
+        rows = render(
+            BANK_PL,
+            [{"header": "Mar 2025"}, {"header": "Mar 2026"}],
+            [
+                {"percentageOfGrossNpa": 0, "eps": 46.3},
+                {"percentageOfGrossNpa": 0, "eps": 49.4},
+            ],
+        )
+        labels = [r["label"] for r in rows]
+        assert "Gross NPA %" not in labels
+        assert "EPS in Rs" in labels
+
+    def test_a_row_with_one_real_figure_is_kept(self) -> None:
+        rows = render(
+            BANK_PL,
+            [{"header": "Mar 2025"}, {"header": "Mar 2026"}],
+            [{"percentageOfGrossNpa": 0}, {"percentageOfGrossNpa": 1.2}],
+        )
+        npa = next(r for r in rows if r["label"] == "Gross NPA %")
+        assert npa["values"] == [0.0, 1.2]
+
+    def test_a_genuine_negative_row_is_kept(self) -> None:
+        rows = render(
+            GENERAL_PL,
+            [{"header": "Mar 2026"}],
+            [{"profitLossForPeriod": -1.141e10}],
+        )
+        assert any(r["label"] == "Net Profit" for r in rows)
