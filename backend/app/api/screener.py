@@ -1,20 +1,19 @@
-"""Screener endpoints. Public, with a server-enforced row cap."""
+"""Screener endpoints. Public, with a role-aware row cap.
+
+Thin wrappers over app/services/screener.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.auth.deps import current_role, row_cap_for
 from app.auth.models import Role
-from app.db.engine import get_engine
-from app.screener.catalog import COLUMNS, screenable
-from app.screener.execute import run_screen
-from app.screener.parser import QueryError
-from app.screener.presets import PRESETS, PRESETS_BY_SLUG
 from app.security.ratelimit import READ, SCREENER, limit
+from app.services import screener as screener_service
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -30,40 +29,19 @@ class ScreenRequest(BaseModel):
 
 @router.get("/columns", dependencies=[Depends(limit(READ))])
 def columns() -> dict[str, Any]:
-    """The column catalog, for autocomplete and the query builder."""
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for column in COLUMNS:
-        groups.setdefault(column.source, []).append(
-            {
-                "key": column.key,
-                "label": column.label,
-                "unit": column.unit,
-                "aliases": list(column.aliases),
-                "description": column.description,
-                "screenable": column.unit != "text",
-            }
-        )
-    return {
-        "total": len(COLUMNS),
-        "screenable": len(screenable()),
-        "groups": groups,
-    }
+    """The column catalog, for autocomplete, the query builder and agents."""
+    return screener_service.columns()
 
 
 @router.get("/presets", dependencies=[Depends(limit(READ))])
 def presets() -> dict[str, Any]:
-    return {
-        "presets": [
-            {
-                "slug": p.slug,
-                "name": p.name,
-                "description": p.description,
-                "query": p.query,
-                "columns": list(p.columns),
-            }
-            for p in PRESETS
-        ]
-    }
+    return screener_service.presets()
+
+
+@router.post("/validate", dependencies=[Depends(limit(READ))])
+def validate(request: ScreenRequest) -> dict[str, Any]:
+    """Parse without running. Cheap enough to call on every keystroke."""
+    return screener_service.validate(request.query)
 
 
 @router.post("/run", dependencies=[Depends(limit(SCREENER))])
@@ -74,46 +52,17 @@ def run(request: ScreenRequest, role: Role = Depends(current_role)) -> dict[str,
     A modified client request cannot retrieve row 26: the LIMIT is computed
     server-side from the cap, never taken from the request.
     """
-    try:
-        result = run_screen(
-            get_engine(),
-            request.query,
-            display_columns=request.columns,
-            sort_by=request.sort_by,
-            descending=request.descending,
-            page=request.page,
-            page_size=request.page_size,
-            row_cap=row_cap_for(role),
-        )
-    except QueryError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": exc.message, "position": exc.position},
-        ) from exc
-
-    payload = result.as_dict()
-    # The SQL is useful when developing but is not part of the public contract.
-    payload.pop("sql", None)
-    return payload
+    return screener_service.run(
+        request.query,
+        display_columns=request.columns,
+        sort_by=request.sort_by,
+        descending=request.descending,
+        page=request.page,
+        page_size=request.page_size,
+        row_cap=row_cap_for(role),
+    )
 
 
 @router.post("/presets/{slug}/run", dependencies=[Depends(limit(SCREENER))])
 def run_preset(slug: str, page: int = 1, role: Role = Depends(current_role)) -> dict[str, Any]:
-    preset = PRESETS_BY_SLUG.get(slug)
-    if preset is None:
-        raise HTTPException(status_code=404, detail=f"Unknown preset: {slug}")
-    result = run_screen(
-        get_engine(),
-        preset.query,
-        display_columns=list(preset.columns) or None,
-        page=page,
-        row_cap=row_cap_for(role),
-    )
-    payload = result.as_dict()
-    payload.pop("sql", None)
-    payload["preset"] = {
-        "slug": preset.slug,
-        "name": preset.name,
-        "description": preset.description,
-    }
-    return payload
+    return screener_service.run_preset(slug, page=page, row_cap=row_cap_for(role))

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
+from sqlalchemy import text
 
 from app.config import get_settings
 from app.db.engine import get_engine, get_raw_engine
@@ -15,31 +17,61 @@ from app.ingest.layer2_store import counts as layer2_counts
 from app.ingest.quality import summary as quality_summary
 from app.ingest.store import raw_summary, run_summary
 
+logger = logging.getLogger("stocklens.api.meta")
+
 router = APIRouter(prefix="/api/meta", tags=["meta"])
 
 
 @router.get("/health")
-async def health() -> dict[str, Any]:
-    """Liveness plus FinEdge connectivity.
+async def health(response: Response, finedge: bool = False) -> dict[str, Any]:
+    """Is this instance able to serve requests?
 
-    The key itself is never returned, only whether one is configured.
+    Checks the database, because that is the dependency whose loss makes every
+    read fail. Reporting "ok" while SQLite is unreachable would make a container
+    healthcheck useless exactly when it matters.
+
+    FinEdge is *not* probed by default. It is an outbound call to a third party,
+    and a healthcheck polled every few seconds would hammer it - while its being
+    down does not stop us serving data we already hold. Pass `?finedge=true` when
+    you actually want to know. The key itself is never returned, only whether one
+    is configured.
     """
     settings = get_settings()
-    client = FinEdgeClient(settings)
-    try:
-        finedge_up = await client.healthcheck()
-    finally:
-        await client.aclose()
 
-    return {
-        "status": "ok",
+    database_up = True
+    database_error: str | None = None
+    try:
+        with get_engine().connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:  # noqa: BLE001 - a healthcheck reports faults, never raises
+        database_up = False
+        database_error = str(exc)
+        logger.exception("health check could not reach the database")
+
+    payload: dict[str, Any] = {
+        "status": "ok" if database_up else "degraded",
         "environment": settings.environment,
-        "finedge": {
-            "reachable": finedge_up,
+        "database": {"reachable": database_up, "error": database_error},
+    }
+
+    if finedge:
+        client = FinEdgeClient(settings)
+        try:
+            reachable = await client.healthcheck()
+        finally:
+            await client.aclose()
+        payload["finedge"] = {
+            "reachable": reachable,
             "key_configured": settings.has_finedge_key,
             "base_url": settings.finedge_base_url,
-        },
-    }
+        }
+    else:
+        payload["finedge"] = {"key_configured": settings.has_finedge_key, "checked": False}
+
+    # 503 so an orchestrator can act on the status line alone.
+    if not database_up:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return payload
 
 
 @router.get("/freshness")

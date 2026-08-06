@@ -10,7 +10,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api import auth, companies, meta, screener, workspace
+from app.api import auth, companies, indices, meta, screener, superadmin, workspace
+from app.api._translate import install as install_error_handler
 from app.auth.models import create_auth
 from app.auth.security import jwt_secret_problem
 from app.config import get_settings
@@ -83,6 +84,11 @@ def create_app() -> FastAPI:
     app.include_router(screener.router)
     app.include_router(auth.router)
     app.include_router(workspace.router)
+    app.include_router(indices.router)
+    app.include_router(superadmin.router)
+    # Domain errors become status codes in one place, so no route needs a
+    # try block around a service call.
+    install_error_handler(app)
 
     @app.get("/", tags=["meta"])
     def root() -> dict[str, str]:
