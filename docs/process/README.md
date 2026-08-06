@@ -16,3 +16,4 @@ plain word will do. Where something went wrong, it says so and says what fixed i
 | 2026-08-06 | [Phase 2 - company page API](2026-08-06-phase-2-company-api.md) | Statement tables that render four different kinds of company from one component. Five bugs found by checking figures against the reference. |
 | 2026-08-06 | [Phase 2 - the company page](2026-08-06-phase-2-company-page.md) | Search and the company page in React. One table component draws banks, insurers and ordinary companies. Caught annual figures sitting in quarterly columns. |
 | 2026-08-06 | [Phase 3 - the screener engine](2026-08-06-phase-3-screener-engine.md) | A query language over 118 columns, compiled to parameterised SQL. Column names can never come from user text. |
+| 2026-08-06 | [Phase 3 - the screener interface](2026-08-06-phase-3-screener-interface.md) | Query box with multi-word autocomplete, results grid, presets, and an honest row cap. Phase 3 complete. |

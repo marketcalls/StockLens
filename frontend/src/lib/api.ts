@@ -181,3 +181,75 @@ export const api = {
       `/api/companies/${symbol}/prices?${qs({ limit })}`,
     ),
 }
+
+export type ScreenerColumn = {
+  key: string
+  label: string
+  unit: string
+  aliases: string[]
+  description: string
+  screenable: boolean
+}
+
+export type ColumnsResponse = {
+  total: number
+  screenable: number
+  groups: Record<string, ScreenerColumn[]>
+}
+
+export type Preset = {
+  slug: string
+  name: string
+  description: string
+  query: string
+  columns: string[]
+}
+
+export type ScreenResult = {
+  query: string
+  columns: { key: string; label: string; unit: string }[]
+  rows: Record<string, string | number | null>[]
+  total: number
+  returned: number
+  capped: boolean
+  cap: number | null
+  elapsed_ms: number
+  page: number
+  page_size: number
+  preset?: { slug: string; name: string; description: string }
+}
+
+export type QueryErrorDetail = { message: string; position: number | null }
+
+export class ScreenerError extends Error {
+  constructor(
+    message: string,
+    readonly position: number | null,
+  ) {
+    super(message)
+    this.name = "ScreenerError"
+  }
+}
+
+async function postScreen(path: string, body: unknown): Promise<ScreenResult> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (response.status === 400) {
+    const payload = (await response.json()) as { detail: QueryErrorDetail }
+    throw new ScreenerError(payload.detail.message, payload.detail.position)
+  }
+  if (!response.ok) throw new ApiError(`${path} returned ${response.status}`, response.status)
+  return (await response.json()) as ScreenResult
+}
+
+export const screener = {
+  columns: () => request<ColumnsResponse>("/api/screener/columns"),
+  presets: () => request<{ presets: Preset[] }>("/api/screener/presets"),
+  run: (query: string, page = 1, columns?: string[]) =>
+    postScreen("/api/screener/run", { query, page, columns, page_size: 50 }),
+  runPreset: (slug: string, page = 1) =>
+    postScreen(`/api/screener/presets/${slug}/run?page=${page}`, {}),
+}

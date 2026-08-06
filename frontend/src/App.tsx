@@ -3,6 +3,7 @@ import { Link, Route, Routes, useLocation } from "react-router-dom"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { CompanyPage } from "@/features/company/company-page"
 import { StatusPanel } from "@/features/meta/status-panel"
+import { ScreenerPage } from "@/features/screener/screener-page"
 import { HomePage } from "@/features/search/home-page"
 import { SearchBox } from "@/features/search/search-box"
 
@@ -30,6 +31,12 @@ function Header() {
         )}
 
         <nav className="flex shrink-0 items-center gap-1">
+          <Link
+            to="/screens"
+            className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            Screens
+          </Link>
           <Link
             to="/status"
             className="rounded px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
@@ -74,6 +81,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/company/:symbol" element={<CompanyPage />} />
+          <Route path="/screens" element={<ScreenerPage />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
