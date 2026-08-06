@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react"
 import { Wordmark } from "@/components/brand"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AdminPage } from "@/features/admin/admin-page"
+import { PeoplePage } from "@/features/admin/people-page"
 import { AuthPage } from "@/features/auth/auth-page"
 import { CompanyPage } from "@/features/company/company-page"
 import { IndexPage } from "@/features/indices/index-page"
@@ -24,10 +25,13 @@ const NAV = [
   { to: "/status", label: "Status" },
 ]
 
-/** The console link only appears for the person who can actually use it. */
+/** Admin links only appear for the people who can actually use them. */
 function useNavItems() {
   const { limits } = useAuth()
-  return limits.can_manage_platform ? [...NAV, { to: "/admin", label: "Console" }] : NAV
+  const items = [...NAV]
+  if (limits.can_admin) items.push({ to: "/admin/people", label: "People" })
+  if (limits.can_manage_platform) items.push({ to: "/admin", label: "Console" })
+  return items
 }
 
 function NavItem({
@@ -235,6 +239,7 @@ export default function App() {
           <Route path="/signup" element={<AuthPage mode="signup" />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/people" element={<PeoplePage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

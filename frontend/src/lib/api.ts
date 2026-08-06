@@ -510,3 +510,63 @@ export const superadmin = {
     send<{ run_id: string; cleared: boolean }>(`/api/superadmin/runs/${runId}/release`, "POST"),
   quality: () => request<Record<string, unknown>>("/api/superadmin/quality"),
 }
+
+// ------------------------------------------------------------------ users
+
+export type ManagedUser = {
+  id: number
+  email: string
+  display_name: string | null
+  role: string
+  is_active: boolean
+  created_at: string | null
+  last_login_at: string | null
+  saved_screens: number
+  watchlists: number
+}
+
+export type AuditEntry = {
+  id: number
+  actor_id: number | null
+  action: string
+  target: string | null
+  detail: string | null
+  created_at: string
+}
+
+export type UserDetail = {
+  user: ManagedUser
+  saved_screens: { id: number; name: string; query: string }[]
+  watchlists: { id: number; name: string }[]
+  audit: AuditEntry[]
+}
+
+export type UserListing = {
+  total: number
+  users: ManagedUser[]
+  /** Why the last super admin cannot be demoted, rather than only refusing. */
+  active_super_admins: number
+}
+
+export const people = {
+  list: (params: { q?: string; role?: string; include_inactive?: boolean } = {}) =>
+    request<UserListing>(
+      `/api/users?${qs({
+        q: params.q || undefined,
+        role: params.role || undefined,
+        include_inactive: params.include_inactive === false ? "false" : undefined,
+      })}`,
+    ),
+  detail: (id: number) => request<UserDetail>(`/api/users/${id}`),
+  roles: () => request<{ roles: { value: string; rank: number; label: string }[] }>("/api/users/roles"),
+  changeRole: (id: number, role: string) =>
+    send<UserDetail>(`/api/users/${id}/role`, "PATCH", { role }),
+  setActive: (id: number, active: boolean) =>
+    send<UserDetail>(`/api/users/${id}/active`, "PATCH", { active }),
+  invite: (email: string, role: string, displayName?: string) =>
+    send<{ user: ManagedUser; one_time_password: string }>("/api/users", "POST", {
+      email,
+      role,
+      display_name: displayName || null,
+    }),
+}
