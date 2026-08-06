@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.auth.deps import current_role, row_cap_for
+from app.auth.models import Role
 from app.db.engine import get_engine
 from app.screener.catalog import COLUMNS, screenable
-from app.screener.execute import PUBLIC_ROW_CAP, run_screen
+from app.screener.execute import run_screen
 from app.screener.parser import QueryError
 from app.screener.presets import PRESETS, PRESETS_BY_SLUG
 
@@ -64,12 +66,12 @@ def presets() -> dict[str, Any]:
 
 
 @router.post("/run")
-def run(request: ScreenRequest) -> dict[str, Any]:
+def run(request: ScreenRequest, role: Role = Depends(current_role)) -> dict[str, Any]:
     """Run a query.
 
-    The public row cap is applied here, in the query layer. A modified client
-    request cannot retrieve row 26 - the LIMIT is computed server-side from the
-    cap, not passed in.
+    The row cap comes from the caller's role and is applied in the query layer.
+    A modified client request cannot retrieve row 26: the LIMIT is computed
+    server-side from the cap, never taken from the request.
     """
     try:
         result = run_screen(
@@ -80,7 +82,7 @@ def run(request: ScreenRequest) -> dict[str, Any]:
             descending=request.descending,
             page=request.page,
             page_size=request.page_size,
-            row_cap=PUBLIC_ROW_CAP,
+            row_cap=row_cap_for(role),
         )
     except QueryError as exc:
         raise HTTPException(
@@ -95,7 +97,7 @@ def run(request: ScreenRequest) -> dict[str, Any]:
 
 
 @router.post("/presets/{slug}/run")
-def run_preset(slug: str, page: int = 1) -> dict[str, Any]:
+def run_preset(slug: str, page: int = 1, role: Role = Depends(current_role)) -> dict[str, Any]:
     preset = PRESETS_BY_SLUG.get(slug)
     if preset is None:
         raise HTTPException(status_code=404, detail=f"Unknown preset: {slug}")
@@ -104,7 +106,7 @@ def run_preset(slug: str, page: int = 1) -> dict[str, Any]:
         preset.query,
         display_columns=list(preset.columns) or None,
         page=page,
-        row_cap=PUBLIC_ROW_CAP,
+        row_cap=row_cap_for(role),
     )
     payload = result.as_dict()
     payload.pop("sql", None)

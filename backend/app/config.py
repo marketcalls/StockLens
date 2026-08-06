@@ -11,6 +11,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # backend/app/config.py -> backend/app -> backend -> project root
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Environments served over plain HTTP, where a Secure cookie would never be
+# sent back by the browser or the test client.
+PLAIN_HTTP_ENVIRONMENTS = frozenset({"development", "dev", "test", "testing", "local"})
+
 
 class Settings(BaseSettings):
     """Runtime configuration.
@@ -39,6 +43,12 @@ class Settings(BaseSettings):
 
     environment: str = "development"
     cors_origins: str = "http://localhost:5173"
+    # Whether the session cookie carries Secure. Left as None it is derived from
+    # `environment`. Inferring it from a free-text name is fragile - a third
+    # value such as "test" silently got a Secure cookie that cannot travel over
+    # HTTP, so the name is matched against an explicit set of plain-HTTP
+    # environments rather than against one string.
+    cookie_secure: bool | None = None
 
     @field_validator("stocklens_db_path", "stocklens_raw_db_path")
     @classmethod
@@ -48,6 +58,12 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def session_cookie_secure(self) -> bool:
+        if self.cookie_secure is not None:
+            return self.cookie_secure
+        return self.environment.lower() not in PLAIN_HTTP_ENVIRONMENTS
 
     @property
     def has_finedge_key(self) -> bool:

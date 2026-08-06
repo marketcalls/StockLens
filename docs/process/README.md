@@ -17,3 +17,4 @@ plain word will do. Where something went wrong, it says so and says what fixed i
 | 2026-08-06 | [Phase 2 - the company page](2026-08-06-phase-2-company-page.md) | Search and the company page in React. One table component draws banks, insurers and ordinary companies. Caught annual figures sitting in quarterly columns. |
 | 2026-08-06 | [Phase 3 - the screener engine](2026-08-06-phase-3-screener-engine.md) | A query language over 118 columns, compiled to parameterised SQL. Column names can never come from user text. |
 | 2026-08-06 | [Phase 3 - the screener interface](2026-08-06-phase-3-screener-interface.md) | Query box with multi-word autocomplete, results grid, presets, and an honest row cap. Phase 3 complete. |
+| 2026-08-06 | [Phase 4 - accounts and workflow](2026-08-06-phase-4-accounts-and-workflow.md) | Accounts, the role hierarchy, saved screens, watchlists and export. Caught a session cookie that silently stopped working outside one environment name. |

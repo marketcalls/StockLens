@@ -9,9 +9,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import companies, meta, screener
+from app.api import auth, companies, meta, screener, workspace
+from app.auth.models import create_auth
+from app.auth.security import jwt_secret_problem
 from app.config import get_settings
 from app.db.engine import get_engine, get_raw_engine
+from app.db.layer2 import create_layer2
 from app.db.models import create_all
 from app.logging_setup import configure_logging
 
@@ -23,9 +26,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging()
     create_all(get_engine(), get_raw_engine())
+    create_layer2(get_engine())
+    create_auth(get_engine())
     logger.info("StockLens starting in %s mode", settings.environment)
     if not settings.has_finedge_key:
         logger.warning("FINEDGE_API_KEY is not configured; ingestion will fail")
+
+    # A weak signing secret means sessions can be forged. Refuse to start with
+    # one anywhere that is not plain-HTTP development.
+    secret_problem = jwt_secret_problem()
+    if secret_problem:
+        if settings.session_cookie_secure:
+            raise RuntimeError(f"Refusing to start: {secret_problem}")
+        logger.warning("%s. Acceptable for local development only.", secret_problem)
     yield
     logger.info("StockLens shutting down")
 
@@ -48,6 +61,8 @@ def create_app() -> FastAPI:
     app.include_router(meta.router)
     app.include_router(companies.router)
     app.include_router(screener.router)
+    app.include_router(auth.router)
+    app.include_router(workspace.router)
 
     @app.get("/", tags=["meta"])
     def root() -> dict[str, str]:
