@@ -151,6 +151,11 @@ export function IndexPage() {
               This is a price-only series with no published constituent list, so there is nothing
               to take a median across.
             </p>
+          ) : index.outside_universe === index.count ? (
+            <p className="text-sm text-muted-foreground">
+              Every member is a REIT, InvIT or SME listing rather than an equity. None of them
+              file the company statements these medians are taken from.
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -230,14 +235,22 @@ export function IndexPage() {
               {sorted.map((row) => (
                 <tr key={row.symbol} className="border-b border-grid last:border-0">
                   <td className="py-2 pr-3">
-                    <Link
-                      to={`/company/${row.symbol}`}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
-                      {row.name || row.symbol}
-                    </Link>
+                    {row.in_universe ? (
+                      <Link
+                        to={`/company/${row.symbol}`}
+                        className="font-medium hover:text-primary hover:underline"
+                      >
+                        {row.name || row.symbol}
+                      </Link>
+                    ) : (
+                      // No company page exists for a REIT, InvIT or SME listing,
+                      // so linking would send the reader to a 404.
+                      <span className="font-medium text-muted-foreground">{row.symbol}</span>
+                    )}
                     {row.sector ? (
                       <p className="truncate text-micro text-muted-foreground">{row.sector}</p>
+                    ) : !row.in_universe ? (
+                      <p className="text-micro text-muted-foreground">Not an equity listing</p>
                     ) : null}
                   </td>
                   {COLUMNS.map((column) => {
@@ -268,7 +281,15 @@ export function IndexPage() {
         </div>
         )}
 
-        {index.count > 0 && index.with_fundamentals < index.count ? (
+        {index.outside_universe > 0 ? (
+          <p className="mt-3 border-t pt-3 text-micro text-muted-foreground">
+            {index.outside_universe} of the {index.count} members are REITs, InvITs or SME
+            listings rather than equities. The exchange identifies them by scrip code, and they
+            have no company page or financial statements.
+          </p>
+        ) : null}
+
+        {index.count > index.outside_universe && index.with_fundamentals < index.count ? (
           <p className="mt-3 border-t pt-3 text-micro text-muted-foreground">
             Prices and market caps are current for all {index.count}. Financial figures show for
             the {index.with_fundamentals} whose statements have been downloaded; the rest fill in

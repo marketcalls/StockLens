@@ -146,6 +146,7 @@ def detail(index_symbol: str, *, engine: Engine | None = None) -> dict[str, Any]
                     """
                     SELECT m.symbol,
                            COALESCE(s.name, c.name) AS name,
+                           c.symbol IS NOT NULL AS in_universe,
                            s.current_price, s.market_cap, s.pe, s.pb,
                            s.dividend_yield, s.returnonequity, s.returnoncapital,
                            s.net_profit, s.sales, s.change_pct,
@@ -164,6 +165,17 @@ def detail(index_symbol: str, *, engine: Engine | None = None) -> dict[str, Any]
         )
 
     constituents = [dict(m) for m in members]
+    for member in constituents:
+        # SQLite has no boolean type, so the column arrives as 0/1.
+        member["in_universe"] = bool(member["in_universe"])
+
+    # Some index members are not equities at all - the BSE REIT & InvIT index is
+    # entirely REITs and InvITs, and the SME IPO index is SME listings. They are
+    # identified by scrip code and never appear in the equity symbol master, so
+    # there is no company page to link to and no fundamentals to show. They are
+    # still genuine constituents, so dropping them would misstate the index.
+    outside = [c for c in constituents if not c["in_universe"]]
+
     # Market cap comes from the daily quote, which every listed company has, so
     # it says nothing about whether the statements were downloaded. Net profit
     # only exists after a backfill, which is the question being asked.
@@ -188,6 +200,8 @@ def detail(index_symbol: str, *, engine: Engine | None = None) -> dict[str, Any]
         # Only companies that have been backfilled carry fundamentals, so say
         # how many rather than implying the whole index is loaded.
         "with_fundamentals": len(with_data),
+        # Members that are not equities, and so can never have either.
+        "outside_universe": len(outside),
         "median": {
             "pe": median("pe"),
             "pb": median("pb"),

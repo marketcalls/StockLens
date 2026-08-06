@@ -391,6 +391,8 @@ export type IndexQuote = {
 export type IndexConstituent = {
   symbol: string
   name: string | null
+  /** False for REITs, InvITs and SME listings, which are not in the equity universe. */
+  in_universe: boolean
   current_price: number | null
   market_cap: number | null
   pe: number | null
@@ -418,6 +420,7 @@ export type IndexDetail = {
   /** Every listed company has a quote; only backfilled ones have statements. */
   count: number
   with_fundamentals: number
+  outside_universe: number
   median: {
     pe: number | null
     pb: number | null
