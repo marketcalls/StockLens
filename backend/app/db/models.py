@@ -78,6 +78,25 @@ ingestion_task = Table(
 )
 
 
+# Warnings, errors and unhandled exceptions, kept so an operator can see what
+# went wrong without shell access to the server. Trimmed to LOG_RETENTION rows.
+log_record = Table(
+    "log_record",
+    core_metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("created_at", String, nullable=False, index=True),
+    Column("level", String, nullable=False, index=True),
+    Column("logger", String, nullable=False),
+    Column("message", String, nullable=False),
+    Column("traceback", String),
+    # Set when the record came from a request rather than a background job.
+    Column("path", String),
+    Column("method", String),
+    Column("status", Integer),
+    Column("actor_id", Integer),
+)
+
+
 def create_all(core_engine: object, raw_engine: object) -> None:
     """Create both schemas. Alembic owns migrations; this is for tests and bootstrap."""
     core_metadata.create_all(core_engine)  # type: ignore[arg-type]

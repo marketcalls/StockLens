@@ -1,6 +1,6 @@
 # HTTP API
 
-57 endpoints under `/api`. Interactive docs are at `/docs` when the server is
+60 endpoints under `/api`. Interactive docs are at `/docs` when the server is
 running; this page covers the parts a schema cannot express — who may call what,
 what the units are, and where the results come from.
 
@@ -189,6 +189,26 @@ enforced in the service rather than the route, so a script cannot go around them
 `POST /api/users` returns `one_time_password` once. A self-hosted install has no
 mail server, so there is nothing to send an invitation with; the password is
 stored only as a hash and cannot be recovered afterwards.
+
+## Diagnostics — Admin and above
+
+| Route | Notes |
+| --- | --- |
+| `GET /api/diagnostics/health` | Errors in the last 24h, last failure, last run, storage |
+| `GET /api/diagnostics/logs?level=&logger=&limit=` | Recent warnings and errors |
+| `GET /api/diagnostics/logs/{log_id}` | One record, with its traceback |
+
+Warnings and errors are written to the database as well as stdout, because a
+self-hosted install is usually a container nobody is watching. Unhandled
+exceptions are recorded with their traceback; the caller gets a 500 saying an
+administrator can find the detail, since a traceback names internal paths and
+can carry values from the failing call.
+
+The stored text is redacted, and redaction happens on the finished string rather
+than the template — `log("...token=%s", key)` has no `token=` to match until the
+two are joined, and a traceback never passes through a filter at all.
+
+The table keeps the most recent 2,000 records.
 
 ## Ingestion — Super Admin
 

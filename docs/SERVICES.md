@@ -160,6 +160,14 @@ rules depend on who is asking: you cannot lower your own role, grant a role abov
 your own, act on a super administrator unless you are one, or remove the last
 active super administrator. Accounts are suspended, never deleted.
 
+### `services.diagnostics`
+
+| Function | Returns |
+| --- | --- |
+| `health()` | Errors in the last 24h, last failure, last run, storage sizes |
+| `logs(level=, logger=, limit=)` | Recent warnings and errors |
+| `entry(log_id)` | One record, with its traceback |
+
 ### `services.workspace`
 
 Saved screens and watchlists, all taking a `user_id` as the first argument.

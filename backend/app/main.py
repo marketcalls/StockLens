@@ -10,7 +10,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api import auth, companies, indices, meta, screener, superadmin, users, workspace
+from app.api import (
+    auth,
+    companies,
+    diagnostics,
+    indices,
+    meta,
+    screener,
+    superadmin,
+    users,
+    workspace,
+)
+from app.api._errors import install as install_unhandled_handler
 from app.api._translate import install as install_error_handler
 from app.auth.models import create_auth
 from app.auth.security import jwt_secret_problem
@@ -20,6 +31,7 @@ from app.db.layer2 import create_layer2
 from app.db.models import create_all
 from app.ingest.materialise import create_snapshot
 from app.logging_setup import configure_logging
+from app.logstore import install as install_log_store
 from app.security.middleware import (
     BodySizeLimitMiddleware,
     RateLimitIdentityMiddleware,
@@ -39,6 +51,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Without this a fresh install answers the screener with a 500 rather
     # than an empty result, because nothing has run materialisation yet.
     create_snapshot(get_engine())
+    # Warnings and errors go to the database as well as stdout, so a container
+    # with nobody watching its output still has a record.
+    install_log_store(get_engine())
     logger.info("StockLens starting in %s mode", settings.environment)
     if not settings.has_finedge_key:
         logger.warning("FINEDGE_API_KEY is not configured; ingestion will fail")
@@ -87,6 +102,8 @@ def create_app() -> FastAPI:
     app.include_router(indices.router)
     app.include_router(superadmin.router)
     app.include_router(users.router)
+    app.include_router(diagnostics.router)
+    install_unhandled_handler(app)
     # Domain errors become status codes in one place, so no route needs a
     # try block around a service call.
     install_error_handler(app)

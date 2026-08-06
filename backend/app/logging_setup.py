@@ -30,17 +30,38 @@ def _scrub(value: object) -> object:
     return redact(text) if "token=" in text else value
 
 
+class RedactingFormatter(logging.Formatter):
+    """Redact the finished text, including any traceback.
+
+    A filter sees the template and the arguments separately, so
+    `log("...token=%s", key)` has no `token=` for it to match until the two are
+    joined. And an exception traceback is rendered here, never passing through a
+    filter at all, while carrying the URL of the call that failed.
+
+    This is the guarantee; the filter below is defence in depth.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact(super().format(record))
+
+
 class RedactingFilter(logging.Filter):
-    """Scrub token values from a record's message and arguments.
+    """Scrub token values from a record's arguments.
 
     Returns True always: this filter rewrites records, it does not drop them.
+
+    The message template is only rewritten when there is nothing to interpolate
+    into it. Redacting `"...token=%s"` turns it into `"...token=REDACTED"`,
+    which destroys the placeholder and makes formatting fail outright - the
+    record is then dropped with a logging error rather than written safely.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = redact(record.msg)
-        elif "token=" in str(record.msg):
-            record.msg = redact(str(record.msg))
+        if not record.args:
+            if isinstance(record.msg, str):
+                record.msg = redact(record.msg)
+            elif "token=" in str(record.msg):
+                record.msg = redact(str(record.msg))
         if record.args:
             if isinstance(record.args, dict):
                 record.args = {k: _scrub(v) for k, v in record.args.items()}
@@ -59,7 +80,7 @@ def configure_logging(level: int = logging.INFO, *, quiet_httpx: bool = True) ->
     root.setLevel(level)
 
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(message)s"))
     handler.addFilter(RedactingFilter())
 
     for existing in list(root.handlers):
