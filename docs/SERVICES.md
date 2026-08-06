@@ -63,6 +63,10 @@ absent — only 2,510 of 5,630 companies file consolidated — and reports which
 actually used in `statement_type`. Check that field rather than assuming you got
 what you asked for.
 
+The response also carries `schema_kind`: `general`, `bank`, `life_insurance` or
+`general_insurance`. The four file different line items, so the row labels differ
+by family. Read the rows rather than looking for a label you expect.
+
 `code` is `pl`, `bs` or `cf`. `period` is `annual`, `quarterly` or `ttm`.
 `statement_type` is `c` (consolidated) or `s` (standalone).
 
@@ -95,9 +99,12 @@ The HTTP layer passes the limit for the caller's role.
 | `detail(index_symbol)` | One index with constituents, returns and medians |
 | `movers(limit=10)` | Best and worst index performance today |
 
-`detail` reports `count` (constituents) and `with_fundamentals` separately.
-Every listed company has a quote; only backfilled ones have statements, so the
-two differ until the backfill has run.
+`detail` reports `count`, `with_fundamentals` and `outside_universe`
+separately. Every listed company has a quote but only backfilled ones have
+statements, so the first two differ until the backfill has run. The third counts
+members that are not equities — REITs, InvITs and SME listings, which the
+exchange identifies by scrip code and which have no company row at all. Each
+constituent carries `in_universe`.
 
 ### `services.ingest`
 
@@ -110,14 +117,24 @@ two differ until the backfill has run.
 | `start_price_refresh()` | Every company's quote, one call |
 | `start_backfill(limit=, symbols=, call_budget=)` | Background download |
 | `rebuild_snapshot()` | Re-materialise the screener table |
+| `release_stuck_run(run_id)` | Clear a run whose process died |
 | `quality()` | Data quality checks |
 
 One long job at a time — SQLite has a single writer, and two backfills would
-fight over it while doubling the request rate against FinEdge. Starting a second
-raises `Conflict`.
+fight over it while doubling the request rate against FinEdge. The lock lives in
+the database, not in process memory, so it holds against a job started by the
+CLI or a second worker. Starting a second raises `Conflict` naming the one in
+the way.
+
+A run still marked running after `STALE_RUN_AFTER` (24 hours, longer than the
+~18 a full backfill takes) is treated as abandoned. `release_stuck_run` is the
+operator saying they know a job died; it cannot stop a live one, because nothing
+here can reach into another process.
 
 `start_backfill` returns immediately with a `run_id`; poll `status()` or
-`run_detail(run_id)` for progress. The full universe is roughly 332,000 calls and
+`run_detail(run_id)` for progress, which reports `symbols_done` and
+`symbols_total`. Measure in companies, not tasks: task rows are written as the
+run reaches each company, so a task ratio reads as complete throughout. The full universe is roughly 332,000 calls and
 eighteen hours.
 
 ### `services.workspace`

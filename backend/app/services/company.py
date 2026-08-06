@@ -35,6 +35,8 @@ StatementType = Literal["c", "s"]
 
 PERIOD_LIMIT = 16
 
+UNIT_NOTE = "Figures in Rs. Crore unless stated otherwise"
+
 KEY_RATIO_COLUMNS = (
     "pe",
     "pb",
@@ -221,15 +223,22 @@ def statements(
 
         periods = periods[-PERIOD_LIMIT:]
         if not periods:
+            # Same keys as the available branch. A caller reading schema_kind
+            # should not get a KeyError for a company that happens to have no
+            # statements yet - the shape of a response must not depend on
+            # whether there is data in it.
             return {
                 "symbol": symbol,
                 "statement_code": code,
                 "period_kind": period,
                 "statement_type": statement_type,
+                "schema_kind": None,
                 "available": False,
                 "reason": "No data for this statement, period and type.",
                 "headers": [],
+                "result_dates": [],
                 "rows": [],
+                "unit_note": UNIT_NOTE,
             }
 
         ids = [p["id"] for p in periods]
@@ -289,7 +298,7 @@ def statements(
         "headers": [p["header"] for p in periods],
         "result_dates": [p["result_date"] for p in periods],
         "rows": rows,
-        "unit_note": "Figures in Rs. Crore unless stated otherwise",
+        "unit_note": UNIT_NOTE,
     }
 
 

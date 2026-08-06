@@ -18,13 +18,26 @@ runs alongside the app, call the service instead — see [SERVICES.md](SERVICES.
 | Admin | 20 | Everything a user gets, plus data quality |
 | Super Admin | 30 | Ingestion control |
 
-Sign in with `POST /api/auth/login`. The token comes back as an HttpOnly
-`SameSite=Lax` cookie, so a browser needs nothing extra; a script must keep the
-cookie jar (`curl -c/-b`, `httpx.Client()`).
+| Route | Notes |
+| --- | --- |
+| `POST /api/auth/signup` | `{email, password, display_name}` |
+| `POST /api/auth/login` | `{email, password}` |
+| `POST /api/auth/logout` | Clears the cookie |
+| `GET /api/auth/me` | Current session, role and limits |
+| `GET /api/auth/limits` | The caller's row cap and rate limits |
+| `GET /api/limits/screener` | Row cap for the screener alone |
+| `GET /api/superadmin/me` | Confirms super-admin access |
 
-`GET /api/auth/limits` returns the caller's row cap and rate limits, which is
-what the UI uses to explain why a result set stops where it does rather than
-silently truncating.
+The token comes back as an HttpOnly `SameSite=Lax` cookie, so a browser needs
+nothing extra; a script must keep the cookie jar (`curl -c/-b`, `httpx.Client()`).
+
+`limits` is what the UI uses to explain why a result set stops where it does
+rather than silently truncating.
+
+**The email address is a login identifier, not a delivery address.** This is
+self-hosted, so `admin@stocklens.local` and `admin@localhost` are accepted. The
+same rule applies to the `stocklens-auth` CLI, so an account the CLI creates can
+always sign in.
 
 ## Rate limits
 
@@ -59,12 +72,19 @@ correct for one self-hosted instance and would need Redis behind a load balancer
 | `GET /api/companies/{symbol}/corporate-actions` | Dividends, splits, bonus, rights |
 
 **Statements come in four shapes.** Banks, life insurers, general insurers and
-everyone else file different line items, so the response carries a `family` and
-its own row order. Do not assume "Sales" exists — read the rows you are given.
+everyone else file different line items, so the response carries a `schema_kind`
+(`bank`, `life_insurance`, `general_insurance`, `general`) and its own row order.
+Do not assume "Sales" exists — a bank reports Interest and Financing Profit, a
+life insurer Gross Premium Income and Change in Actuarial Liability. Read the
+rows you are given.
 
 **Consolidated is the default and may not exist.** Only 2,510 of 5,630 companies
 file consolidated statements. Ask for `type=c` and the response may come back
 `statement_type: "s"`; the field tells you what you actually got.
+
+**Check `available` before reading `rows`.** A company whose statements have not
+been downloaded yet returns `available: false` with a `reason` and empty rows.
+The response has the same keys either way, so nothing needs a defensive `get`.
 
 **Missing is not zero.** `null` means the company never reported the line.
 
@@ -76,8 +96,13 @@ file consolidated statements. Ask for `type=c` and the response may come back
 | `GET /api/indices/movers?limit=` | Best and worst today |
 | `GET /api/indices/{index_symbol}` | Constituents, returns, medians |
 
-`detail` returns `count` and `with_fundamentals` separately. Every listed
-company has a quote; only backfilled ones have statements.
+`detail` returns three counts that mean different things. `count` is every
+member. `with_fundamentals` is how many have had their statements downloaded —
+every listed company has a quote, but only backfilled ones have financials.
+`outside_universe` is members that are not equities at all: 28 across the BSE
+indices are REITs, InvITs or SME listings, identified by scrip code, with no
+company page and no statements they could ever have. Each constituent carries an
+`in_universe` flag.
 
 Index membership is also screenable: `Index = "NIF50" AND Price to Earning < 20`.
 
@@ -108,10 +133,22 @@ true count, so the UI can say what is being withheld.
 
 ## Saved work
 
-`GET|POST /api/screens`, `GET|PATCH|DELETE /api/screens/{id}`,
-`POST /api/screens/{id}/run`, and the same shape for `/api/watchlists` with
-`/items` underneath. Signed-in only, and scoped to the owner — someone else's
-screen returns 404, not 403.
+| Route | Effect |
+| --- | --- |
+| `GET /api/screens` | Your saved screens |
+| `POST /api/screens` | `{name, query, description}` |
+| `GET /api/screens/{screen_id}` | One screen |
+| `PATCH /api/screens/{screen_id}` | Update it |
+| `DELETE /api/screens/{screen_id}` | Remove it |
+| `POST /api/screens/{screen_id}/run` | Run it |
+| `GET /api/watchlists` | Your lists, with their symbols |
+| `POST /api/watchlists` | `{name}` |
+| `DELETE /api/watchlists/{watchlist_id}` | Remove a list |
+| `POST /api/watchlists/{watchlist_id}/items` | `{symbol, note}` |
+| `DELETE /api/watchlists/{watchlist_id}/items/{symbol}` | Remove a symbol |
+
+Signed-in only, and scoped to the owner — someone else's screen returns 404, not
+403, since 403 would confirm it exists.
 
 ## Ingestion — Super Admin
 
@@ -124,11 +161,19 @@ screen returns 404, not 403.
 | `POST /api/superadmin/prices` | Every company's quote, one call |
 | `POST /api/superadmin/backfill` | `{limit, symbols, call_budget}` — background |
 | `POST /api/superadmin/materialise` | Rebuild the screener table |
+| `POST /api/superadmin/runs/{run_id}/release` | Clear a run whose process died |
 | `GET /api/superadmin/quality` | Data quality checks |
 
-`backfill` returns a `run_id` immediately and reports progress through `status`.
-One long job at a time; a second returns 409. The full universe is roughly
-332,000 calls and eighteen hours.
+`backfill` returns a `run_id` immediately and reports progress through `status`,
+which reports `symbols_done` and `symbols_total` — companies, not tasks, because
+task rows are written as the run reaches each company and would read as complete
+throughout.
+
+One long job at a time, enforced through the database so it holds against a job
+started by the CLI or another worker; a second returns 409 naming the one in the
+way. A run still marked running after 24 hours is treated as abandoned, which is
+longer than the ~18 hours a full universe backfill takes. `release` is for an
+operator who already knows a job died — it does not stop a live one.
 
 Every call here is written to `audit_log` with the actor, action and IP.
 
@@ -142,6 +187,13 @@ line alone.
 It does **not** probe FinEdge by default; that is an outbound call to a third
 party, and FinEdge being down does not stop StockLens serving data it already
 holds. Add `?finedge=true` when you want it checked.
+
+| Route | Notes |
+| --- | --- |
+| `GET /api/meta/health` | Liveness; `?finedge=true` to probe upstream too |
+| `GET /api/meta/counts` | Row counts per table |
+| `GET /api/meta/freshness` | What is held and when it was fetched |
+| `GET /api/meta/quality` | Data quality checks |
 
 `counts`, `freshness` and `quality` are for operators.
 
